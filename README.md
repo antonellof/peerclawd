@@ -14,7 +14,80 @@ PeerClaw'd ships as a **single static binary** with both CLI and embedded web UI
 $ peerclawd serve --gpu --storage 50GB --web :8080
 ```
 
-**[Quickstart Guide](docs/QUICKSTART.md)** — Get up and running in minutes.
+---
+
+## Quickstart
+
+### Build from source
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/peerclawd.git
+cd peerclawd
+
+# Build in release mode
+cargo build --release
+
+# The binary is at ./target/release/peerclawd
+```
+
+### Start a peer node
+
+```bash
+# Start a basic node
+./target/release/peerclawd serve
+
+# Start with web dashboard on port 8080
+./target/release/peerclawd serve --web 127.0.0.1:8080
+
+# Start as a job provider (accept jobs from network)
+./target/release/peerclawd serve --provider --price-per-token 100
+
+# Start with a bootstrap peer
+./target/release/peerclawd serve --bootstrap /ip4/192.168.1.10/tcp/9000/p2p/12D3KooW...
+```
+
+### Interactive AI Chat
+
+```bash
+# Start chat with default model
+./target/release/peerclawd chat
+
+# Specify model and settings
+./target/release/peerclawd chat --model llama-3.2-3b --max-tokens 500 --temperature 0.7
+
+# Use distributed inference (offload to network peers)
+./target/release/peerclawd chat --distributed
+```
+
+Chat commands:
+- `/status` - Show runtime status (peer ID, balance, resources)
+- `/clear` - Clear conversation history
+- `quit` or `exit` - Exit chat
+
+### Test Distributed Execution
+
+```bash
+# Run all local tests (inference, web fetch)
+./target/release/peerclawd test all
+
+# Test with multiple agents
+./target/release/peerclawd test distributed --agents 4 --duration 30
+```
+
+### Web Dashboard
+
+Start the node with `--web` flag, then open http://localhost:8080 in your browser:
+
+```bash
+./target/release/peerclawd serve --web 127.0.0.1:8080
+```
+
+The dashboard shows:
+- **Network topology** - Visual graph of connected peers
+- **System resources** - Real-time CPU, RAM, GPU monitoring
+- **Job status** - Active and completed jobs
+- **Wallet balance** - Token balance and transactions
 
 ---
 
@@ -493,13 +566,17 @@ $ peerclawd serve --web :8080
 
 ## Roadmap
 
-### Phase 1 — Foundation (`v0.1`)
-- [ ] Single binary scaffold: CLI (clap), config (figment), logging (tracing), embedded web (axum + htmx)
-- [ ] P2P peer discovery and resource advertisement (libp2p Kademlia + mDNS)
-- [ ] WASM sandbox runtime for tool execution (wasmtime)
-- [ ] Local `redb` state store for wallet, peer cache, agent metadata
-- [ ] Ed25519 identity generation and message signing
-- [ ] Basic agent spec (TOML) loader and single-peer inference via `candle`
+### Phase 1 — Foundation (`v0.1`) ✅ IMPLEMENTED
+- [x] Single binary scaffold: CLI (clap), config (figment), logging (tracing), embedded web (axum)
+- [x] P2P peer discovery and resource advertisement (libp2p Kademlia + mDNS + GossipSub)
+- [x] WASM sandbox runtime for tool execution (wasmtime)
+- [x] Local `redb` state store for wallet, peer cache, agent metadata
+- [x] Ed25519 identity generation and message signing
+- [x] Inference module with GGUF model support (llama_cpp)
+- [x] Smart task routing (local vs network execution)
+- [x] Job marketplace protocol (request → bid → accept → execute → settle)
+- [x] Interactive AI chat CLI (`peerclawd chat`)
+- [x] Web dashboard with network topology visualization
 
 ### Phase 2 — Economy (`v0.2`)
 - [ ] Token wallet with local accounting and peer-to-peer payment channels

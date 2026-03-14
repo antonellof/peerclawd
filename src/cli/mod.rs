@@ -1,6 +1,8 @@
 //! CLI argument parsing and command dispatch.
 
 pub mod agent;
+pub mod chat;
+pub mod job;
 pub mod network;
 pub mod serve;
 pub mod test;
@@ -46,6 +48,12 @@ pub enum Command {
         #[command(subcommand)]
         cmd: tool::ToolCommand,
     },
+
+    /// Distributed job submission
+    Job(job::JobArgs),
+
+    /// Interactive AI chat
+    Chat(chat::ChatArgs),
 
     /// Test distributed execution
     Test(test::TestArgs),

@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeerClaw'd Dashboard</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --border: #30363d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header h1 span {
+            color: var(--accent);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: 1fr 1fr;
+            gap: 1rem;
+            padding: 1rem;
+            height: calc(100vh - 70px);
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .panel-content {
+            padding: 1rem;
+            height: calc(100% - 52px);
+            overflow: auto;
+        }
+
+        /* Network Graph */
+        .network-panel {
+            grid-row: span 2;
+        }
+
+        #network-graph {
+            width: 100%;
+            height: 100%;
+        }
+
+        #network-graph svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .node-circle {
+            stroke: var(--border);
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .node-circle:hover {
+            stroke: var(--accent);
+            stroke-width: 3px;
+        }
+
+        .node-circle.local {
+            fill: var(--accent);
+        }
+
+        .node-circle.peer {
+            fill: var(--success);
+        }
+
+        .node-label {
+            fill: var(--text-secondary);
+            font-size: 10px;
+            text-anchor: middle;
+        }
+
+        .link {
+            stroke: var(--border);
+            stroke-opacity: 0.6;
+        }
+
+        /* Monitoring Panel */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 1rem;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .stat-value.accent { color: var(--accent); }
+        .stat-value.success { color: var(--success); }
+        .stat-value.warning { color: var(--warning); }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.cpu { background: var(--accent); }
+        .progress-fill.ram { background: var(--success); }
+        .progress-fill.gpu { background: var(--warning); }
+
+        /* Jobs Panel */
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .job-item {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .job-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .job-id {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .job-status {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .job-status.running {
+            background: rgba(88, 166, 255, 0.2);
+            color: var(--accent);
+        }
+
+        .job-status.completed {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--success);
+        }
+
+        /* Chat Panel */
+        .chat-panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-panel .panel-content {
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-message {
+            max-width: 90%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+
+        .chat-message.user {
+            background: var(--accent);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-message.assistant {
+            background: var(--bg-tertiary);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-message.error {
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--danger);
+        }
+
+        .chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            outline: none;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent);
+        }
+
+        .chat-send {
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem 1.25rem;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .chat-send:hover {
+            opacity: 0.9;
+        }
+
+        .chat-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 0.75rem 1rem;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+                <circle cx="12" cy="3" r="1.5" fill="currentColor"/>
+                <circle cx="12" cy="21" r="1.5" fill="currentColor"/>
+                <circle cx="3" cy="12" r="1.5" fill="currentColor"/>
+                <circle cx="21" cy="12" r="1.5" fill="currentColor"/>
+            </svg>
+            PeerClaw<span>'d</span>
+        </h1>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span id="peer-id">Loading...</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="panel network-panel">
+            <div class="panel-header">
+                <h2>Network Topology</h2>
+                <span id="peer-count">0 peers</span>
+            </div>
+            <div class="panel-content">
+                <div id="network-graph"></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <h2>System Resources</h2>
+            </div>
+            <div class="panel-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">CPU Usage</div>
+                        <div class="stat-value accent" id="cpu-value">0%</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill cpu" id="cpu-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">RAM Usage</div>
+                        <div class="stat-value success" id="ram-value">0 / 0 MB</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ram" id="ram-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">GPU Usage</div>
+                        <div class="stat-value warning" id="gpu-value">N/A</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill gpu" id="gpu-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Balance</div>
+                        <div class="stat-value" id="balance-value">0.000000 PCLAW</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active Jobs</div>
+                        <div class="stat-value accent" id="active-jobs">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Completed Jobs</div>
+                        <div class="stat-value success" id="completed-jobs">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Inference Tasks</div>
+                        <div class="stat-value" id="inference-tasks">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">WASM Tasks</div>
+                        <div class="stat-value" id="wasm-tasks">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel chat-panel">
+            <div class="panel-header">
+                <h2>AI Chat</h2>
+                <select id="model-select" style="background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; padding: 0.25rem 0.5rem; color: var(--text-primary);">
+                    <option value="llama-3.2-3b">Llama 3.2 3B</option>
+                    <option value="llama-3.2-1b">Llama 3.2 1B</option>
+                    <option value="phi-3-mini">Phi-3 Mini</option>
+                </select>
+            </div>
+            <div class="panel-content">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <p>Start a conversation with the AI</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." autocomplete="off">
+                    <button class="chat-send" id="chat-send">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let localPeerId = null;
+        let peers = [];
+        let ws = null;
+        let isTyping = false;
+
+        // Initialize WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'status') {
+                    updateStatus(data.data);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting...');
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Update status from WebSocket
+        function updateStatus(data) {
+            document.getElementById('cpu-value').textContent = `${(data.cpu_usage * 100).toFixed(1)}%`;
+            document.getElementById('cpu-bar').style.width = `${data.cpu_usage * 100}%`;
+
+            document.getElementById('ram-value').textContent = `${data.ram_used_mb} / ${data.ram_total_mb} MB`;
+            const ramPercent = (data.ram_used_mb / data.ram_total_mb) * 100;
+            document.getElementById('ram-bar').style.width = `${ramPercent}%`;
+
+            document.getElementById('peer-count').textContent = `${data.connected_peers} peers`;
+            document.getElementById('active-jobs').textContent = data.active_jobs;
+        }
+
+        // Fetch initial status
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                localPeerId = data.peer_id;
+                document.getElementById('peer-id').textContent = data.peer_id.substring(0, 16) + '...';
+
+                document.getElementById('cpu-value').textContent = `${(data.cpu_usage * 100).toFixed(1)}%`;
+                document.getElementById('cpu-bar').style.width = `${data.cpu_usage * 100}%`;
+
+                document.getElementById('ram-value').textContent = `${data.ram_used_mb} / ${data.ram_total_mb} MB`;
+                const ramPercent = (data.ram_used_mb / data.ram_total_mb) * 100;
+                document.getElementById('ram-bar').style.width = `${ramPercent}%`;
+
+                if (data.gpu_usage !== null) {
+                    document.getElementById('gpu-value').textContent = `${(data.gpu_usage * 100).toFixed(1)}%`;
+                    document.getElementById('gpu-bar').style.width = `${data.gpu_usage * 100}%`;
+                }
+
+                document.getElementById('balance-value').textContent = `${data.balance.toFixed(6)} PCLAW`;
+                document.getElementById('active-jobs').textContent = data.active_jobs;
+                document.getElementById('completed-jobs').textContent = data.completed_jobs;
+                document.getElementById('inference-tasks').textContent = data.active_inference;
+                document.getElementById('wasm-tasks').textContent = data.active_wasm;
+                document.getElementById('peer-count').textContent = `${data.connected_peers} peers`;
+
+                updateNetworkGraph();
+            } catch (error) {
+                console.error('Failed to fetch status:', error);
+            }
+        }
+
+        // Fetch peers
+        async function fetchPeers() {
+            try {
+                const response = await fetch('/api/peers');
+                peers = await response.json();
+                updateNetworkGraph();
+            } catch (error) {
+                console.error('Failed to fetch peers:', error);
+            }
+        }
+
+        // Network graph visualization
+        function updateNetworkGraph() {
+            const container = document.getElementById('network-graph');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Clear existing
+            container.innerHTML = '';
+
+            const svg = d3.select('#network-graph')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Create nodes data
+            const nodes = [
+                { id: localPeerId || 'local', type: 'local', label: 'You' },
+                ...peers.map(p => ({ id: p.id, type: 'peer', label: p.id.substring(0, 8) }))
+            ];
+
+            // Create links from local to all peers
+            const links = peers.map(p => ({
+                source: localPeerId || 'local',
+                target: p.id
+            }));
+
+            // Create force simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-200))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(40));
+
+            // Draw links
+            const link = svg.append('g')
+                .selectAll('line')
+                .data(links)
+                .join('line')
+                .attr('class', 'link');
+
+            // Draw nodes
+            const node = svg.append('g')
+                .selectAll('g')
+                .data(nodes)
+                .join('g')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            node.append('circle')
+                .attr('class', d => `node-circle ${d.type}`)
+                .attr('r', d => d.type === 'local' ? 20 : 15);
+
+            node.append('text')
+                .attr('class', 'node-label')
+                .attr('dy', d => d.type === 'local' ? 35 : 28)
+                .text(d => d.label);
+
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node.attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+        }
+
+        // Chat functionality
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const chatSend = document.getElementById('chat-send');
+        const modelSelect = document.getElementById('model-select');
+
+        function addMessage(content, type) {
+            // Remove empty state if present
+            const emptyState = chatMessages.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const msg = document.createElement('div');
+            msg.className = `chat-message ${type}`;
+            msg.textContent = content;
+            chatMessages.appendChild(msg);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.id = 'typing-indicator';
+            indicator.innerHTML = '<span></span><span></span><span></span>';
+            chatMessages.appendChild(indicator);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || isTyping) return;
+
+            addMessage(message, 'user');
+            chatInput.value = '';
+            chatSend.disabled = true;
+            isTyping = true;
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        model: modelSelect.value
+                    })
+                });
+
+                const data = await response.json();
+                hideTypingIndicator();
+
+                if (data.response.startsWith('Error:')) {
+                    addMessage(data.response, 'error');
+                } else {
+                    addMessage(data.response, 'assistant');
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage(`Error: ${error.message}`, 'error');
+            }
+
+            chatSend.disabled = false;
+            isTyping = false;
+        }
+
+        chatSend.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Initialize
+        connectWebSocket();
+        fetchStatus();
+        fetchPeers();
+
+        // Poll for updates
+        setInterval(fetchStatus, 5000);
+        setInterval(fetchPeers, 10000);
+
+        // Handle resize
+        window.addEventListener('resize', updateNetworkGraph);
+    </script>
+</body>
+</html>

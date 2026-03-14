@@ -321,6 +321,11 @@ impl TaskExecutor {
         self.resource_monitor.current_state().await
     }
 
+    /// Get the resource monitor.
+    pub fn resource_monitor(&self) -> Arc<ResourceMonitor> {
+        self.resource_monitor.clone()
+    }
+
     /// Check if a model is loaded locally.
     pub async fn has_model(&self, model_id: &str) -> bool {
         let state = self.resource_monitor.current_state().await;

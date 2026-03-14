@@ -42,6 +42,12 @@ async fn main() -> anyhow::Result<()> {
         Command::Tool { cmd } => {
             peerclawd::cli::tool::run(cmd).await?;
         }
+        Command::Job(args) => {
+            peerclawd::cli::job::run(args).await?;
+        }
+        Command::Chat(args) => {
+            peerclawd::cli::chat::run(args).await?;
+        }
         Command::Test(args) => {
             peerclawd::cli::test::run(args).await?;
         }

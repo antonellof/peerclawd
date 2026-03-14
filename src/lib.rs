@@ -18,6 +18,7 @@ pub mod proxy;
 pub mod runtime;
 pub mod wallet;
 pub mod wasm;
+pub mod web;
 
 // Re-export commonly used types
 pub use config::Config;
