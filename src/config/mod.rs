@@ -99,7 +99,6 @@ impl Default for P2pConfig {
         Self {
             listen_addresses: vec![
                 "/ip4/0.0.0.0/tcp/0".to_string(),
-                "/ip4/0.0.0.0/udp/0/quic-v1".to_string(),
             ],
             bootstrap_peers: vec![],
             mdns_enabled: true,

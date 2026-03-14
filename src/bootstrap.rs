@@ -4,8 +4,15 @@ use std::path::PathBuf;
 
 /// Get the base directory for PeerClaw'd data.
 ///
-/// Uses `~/.peerclawd` on Unix systems and `%APPDATA%\peerclawd` on Windows.
+/// Priority:
+/// 1. `PEERCLAWD_HOME` environment variable
+/// 2. `~/.peerclawd` on Unix systems
+/// 3. `%APPDATA%\peerclawd` on Windows
 pub fn base_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("PEERCLAWD_HOME") {
+        return PathBuf::from(home);
+    }
+
     dirs::home_dir()
         .map(|h| h.join(".peerclawd"))
         .unwrap_or_else(|| PathBuf::from(".peerclawd"))

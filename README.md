@@ -14,6 +14,8 @@ PeerClaw'd ships as a **single static binary** with both CLI and embedded web UI
 $ peerclawd serve --gpu --storage 50GB --web :8080
 ```
 
+**[Quickstart Guide](docs/QUICKSTART.md)** — Get up and running in minutes.
+
 ---
 
 ## Core Principles
