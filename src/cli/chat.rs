@@ -11,6 +11,30 @@ use crate::executor::task::{ExecutionTask, InferenceTask, TaskData};
 use crate::identity::NodeIdentity;
 use crate::runtime::Runtime;
 
+/// Check if a node is running by trying the API at the configured address
+async fn check_running_node() -> Option<String> {
+    // Load config to get the web address
+    let config = Config::load().ok()?;
+    if !config.web.enabled {
+        return None;
+    }
+
+    let addr = config.web.listen_addr;
+    let url = format!("http://{}/api/status", addr);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(500))
+        .build()
+        .ok()?;
+
+    if let Ok(resp) = client.get(&url).send().await {
+        if resp.status().is_success() {
+            return Some(format!("http://{}", addr));
+        }
+    }
+    None
+}
+
 #[derive(Args)]
 pub struct ChatArgs {
     /// Model to use for chat
@@ -32,6 +56,18 @@ pub struct ChatArgs {
     /// Use distributed inference (offload to network if needed)
     #[arg(long)]
     pub distributed: bool,
+
+    /// Force standalone mode (use separate database)
+    #[arg(long)]
+    pub standalone: bool,
+}
+
+/// Mode of operation for the chat
+enum ChatMode {
+    /// Using a running node via API
+    Api { base_url: String },
+    /// Standalone local runtime
+    Local { runtime: Runtime },
 }
 
 pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
@@ -39,31 +75,47 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
     println!("Model: {}", args.model);
     println!("Max tokens: {}", args.max_tokens);
     println!("Temperature: {}", args.temperature);
-    if args.distributed {
+
+    // Determine mode
+    let mode = if args.standalone {
+        println!("Mode: Standalone");
+        ChatMode::Local { runtime: create_standalone_runtime().await? }
+    } else if let Some(base_url) = check_running_node().await {
+        println!("Mode: Connected to running node at {}", base_url);
+        ChatMode::Api { base_url }
+    } else if args.distributed {
         println!("Mode: Distributed (will use network peers if needed)");
+        ChatMode::Local { runtime: create_standalone_runtime().await? }
     } else {
         println!("Mode: Local");
-    }
+        ChatMode::Local { runtime: create_standalone_runtime().await? }
+    };
+
     println!();
     println!("Type your message and press Enter. Type 'quit' or 'exit' to end.");
     println!("Type '/clear' to clear conversation history.");
     println!("Type '/status' to show runtime status.");
     println!();
 
-    // Create runtime
-    let runtime = create_runtime().await?;
+    // Get runtime reference if in local mode
+    let runtime = match &mode {
+        ChatMode::Local { runtime } => Some(runtime),
+        ChatMode::Api { .. } => None,
+    };
 
     // Subscribe to job topics if distributed mode
     if args.distributed {
-        runtime.subscribe_to_job_topics().await?;
-        let mut network = runtime.network.write().await;
-        network.start().await?;
+        if let Some(rt) = &runtime {
+            rt.subscribe_to_job_topics().await?;
+            let mut network = rt.network.write().await;
+            network.start().await?;
 
-        // Wait for connections
-        println!("Connecting to network...");
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let peers = runtime.connected_peers_count().await;
-        println!("Connected to {} peers\n", peers);
+            // Wait for connections
+            println!("Connecting to network...");
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let peers = rt.connected_peers_count().await;
+            println!("Connected to {} peers\n", peers);
+        }
     }
 
     // Conversation history
@@ -97,14 +149,26 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
         }
 
         if input.eq_ignore_ascii_case("/status") {
-            let stats = runtime.stats().await;
-            println!("\n=== Status ===");
-            println!("Peer ID: {}", stats.peer_id);
-            println!("Connected peers: {}", stats.connected_peers);
-            println!("Balance: {:.6} PCLAW", stats.balance);
-            println!("CPU usage: {:.1}%", stats.resource_state.cpu_usage * 100.0);
-            println!("RAM: {}/{} MB", stats.resource_state.ram_available_mb, stats.resource_state.ram_total_mb);
-            println!("Active jobs: {}", stats.active_jobs);
+            match &mode {
+                ChatMode::Local { runtime: rt } => {
+                    let stats = rt.stats().await;
+                    println!("\n=== Status ===");
+                    println!("Peer ID: {}", stats.peer_id);
+                    println!("Connected peers: {}", stats.connected_peers);
+                    println!("Balance: {:.6} PCLAW", stats.balance);
+                    println!("CPU usage: {:.1}%", stats.resource_state.cpu_usage * 100.0);
+                    println!("RAM: {}/{} MB", stats.resource_state.ram_available_mb, stats.resource_state.ram_total_mb);
+                    println!("Active jobs: {}", stats.active_jobs);
+                }
+                ChatMode::Api { base_url } => {
+                    if let Ok(status) = fetch_api_status(base_url).await {
+                        println!("\n=== Status (via API) ===");
+                        println!("{}", status);
+                    } else {
+                        println!("\n[Could not fetch status from node]");
+                    }
+                }
+            }
             println!();
             continue;
         }
@@ -116,35 +180,47 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
         print!("\nAssistant: ");
         io::stdout().flush()?;
 
-        let task = InferenceTask::new(&args.model, &full_prompt)
-            .with_max_tokens(args.max_tokens)
-            .with_temperature(args.temperature);
+        let response = match &mode {
+            ChatMode::Local { runtime: rt } => {
+                let task = InferenceTask::new(&args.model, &full_prompt)
+                    .with_max_tokens(args.max_tokens)
+                    .with_temperature(args.temperature);
 
-        match runtime.execute_task(ExecutionTask::Inference(task)).await {
-            Ok(result) => {
-                match &result.data {
-                    TaskData::Inference(r) => {
-                        println!("{}", r.text);
-
-                        // Add to history
-                        history.push((input.to_string(), r.text.clone()));
-
-                        // Show metrics
-                        if r.tokens_generated > 0 {
-                            println!(
-                                "\n[{} tokens, {:.1} tok/s, {:?}]",
-                                r.tokens_generated,
-                                r.tokens_per_second,
-                                result.location
-                            );
+                match rt.execute_task(ExecutionTask::Inference(task)).await {
+                    Ok(result) => {
+                        match &result.data {
+                            TaskData::Inference(r) => {
+                                let metrics = if r.tokens_generated > 0 {
+                                    Some(format!(
+                                        "[{} tokens, {:.1} tok/s, {:?}]",
+                                        r.tokens_generated,
+                                        r.tokens_per_second,
+                                        result.location
+                                    ))
+                                } else {
+                                    None
+                                };
+                                Ok((r.text.clone(), metrics))
+                            }
+                            TaskData::Error(e) => Err(e.clone()),
+                            _ => Err("Unexpected response type".to_string()),
                         }
                     }
-                    TaskData::Error(e) => {
-                        println!("[Error: {}]", e);
-                    }
-                    _ => {
-                        println!("[Unexpected response type]");
-                    }
+                    Err(e) => Err(e.to_string()),
+                }
+            }
+            ChatMode::Api { base_url } => {
+                // Use the API endpoint
+                execute_via_api(base_url, &args.model, &full_prompt, args.max_tokens, args.temperature).await
+            }
+        };
+
+        match response {
+            Ok((text, metrics)) => {
+                println!("{}", text);
+                history.push((input.to_string(), text));
+                if let Some(m) = metrics {
+                    println!("\n{}", m);
                 }
             }
             Err(e) => {
@@ -158,7 +234,8 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn create_runtime() -> anyhow::Result<Runtime> {
+/// Create a standalone runtime with a separate database for chat
+async fn create_standalone_runtime() -> anyhow::Result<Runtime> {
     bootstrap::ensure_dirs()?;
 
     let identity_path = bootstrap::identity_path();
@@ -170,10 +247,77 @@ async fn create_runtime() -> anyhow::Result<Runtime> {
         Arc::new(id)
     };
 
-    let config = Config::load()?;
+    let mut config = Config::load()?;
+
+    // Use a separate database file for chat to avoid lock conflicts
+    let chat_db_path = config.database.path.with_file_name("chat.redb");
+    config.database.path = chat_db_path;
+
     let db = Database::open(&config.database.path)?;
 
     Runtime::new(identity, db, config).await
+}
+
+/// Fetch status from the running node via API
+async fn fetch_api_status(base_url: &str) -> anyhow::Result<String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/status", base_url);
+    let resp: serde_json::Value = client.get(&url).send().await?.json().await?;
+
+    Ok(format!(
+        "Peer ID: {}\nConnected peers: {}\nBalance: {} PCLAW\nActive jobs: {}",
+        resp.get("peer_id").and_then(|v| v.as_str()).unwrap_or("unknown"),
+        resp.get("connected_peers").and_then(|v| v.as_u64()).unwrap_or(0),
+        resp.get("balance").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        resp.get("active_jobs").and_then(|v| v.as_u64()).unwrap_or(0),
+    ))
+}
+
+/// Execute inference via the running node's API
+async fn execute_via_api(
+    base_url: &str,
+    model: &str,
+    prompt: &str,
+    max_tokens: u32,
+    temperature: f32,
+) -> Result<(String, Option<String>), String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/chat", base_url);
+
+    let payload = serde_json::json!({
+        "model": model,
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    });
+
+    match client.post(&url).json(&payload).send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                match resp.json::<serde_json::Value>().await {
+                    Ok(json) => {
+                        let text = json.get("text")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let tokens = json.get("tokens_generated").and_then(|v| v.as_u64());
+                        let tps = json.get("tokens_per_second").and_then(|v| v.as_f64());
+
+                        let metrics = match (tokens, tps) {
+                            (Some(t), Some(s)) if t > 0 => Some(format!("[{} tokens, {:.1} tok/s, via API]", t, s)),
+                            _ => None,
+                        };
+
+                        Ok((text, metrics))
+                    }
+                    Err(e) => Err(format!("Failed to parse response: {}", e)),
+                }
+            } else {
+                Err(format!("API error: {}", resp.status()))
+            }
+        }
+        Err(e) => Err(format!("Request failed: {}", e)),
+    }
 }
 
 fn build_prompt(system: &str, history: &[(String, String)], user_input: &str) -> String {

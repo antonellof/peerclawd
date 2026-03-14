@@ -1,16 +1,20 @@
 //! `peerclawd serve` command - Start a peer node with full distributed execution.
 
 use clap::Args;
+use futures::FutureExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
 use crate::bootstrap;
 use crate::config::Config;
 use crate::db::Database;
+use crate::executor::task::{ExecutionTask, InferenceTask, TaskData};
 use crate::identity::NodeIdentity;
 use crate::job::PricingStrategy;
 use crate::p2p::NetworkEvent;
 use crate::runtime::Runtime;
+use crate::web::{InferenceRequest, InferenceResponse, JobSubmitRequest, JobSubmitResponse, WebJobInfo};
 
 #[derive(Args)]
 pub struct ServeArgs {
@@ -121,14 +125,20 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
         network.start().await?;
     }
 
-    // Get event receiver
-    let mut event_rx = runtime.network.read().await.event_receiver();
+    // Event receiver is available for external listeners
+    let _event_rx = runtime.network.read().await.event_receiver();
 
-    // Create web state for dashboard
+    // Create channels for web UI
+    let (inference_tx, mut inference_rx) = mpsc::channel::<InferenceRequest>(32);
+    let (job_submit_tx, mut job_submit_rx) = mpsc::channel::<JobSubmitRequest>(32);
+
+    // Create web state for dashboard with full channel support
     let web_state = if config.web.enabled {
-        Some(crate::web::create_web_state(
+        Some(crate::web::create_web_state_with_channels(
             runtime.local_peer_id,
             runtime.executor.resource_monitor(),
+            inference_tx,
+            job_submit_tx,
         ))
     } else {
         None
@@ -158,44 +168,140 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
     // Interval for updating web state
     let mut stats_interval = tokio::time::interval(std::time::Duration::from_secs(2));
 
-    // Run event loop until shutdown
+    // Interval for advertising resources
+    let mut advertise_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+
+    // Run event loop until shutdown - poll swarm directly
     loop {
-        tokio::select! {
-            // Handle network events
-            event = event_rx.recv() => {
-                match event {
-                    Ok(e) => {
-                        // Update web state peer list if available
-                        if let Some(ref state) = web_state {
-                            if let NetworkEvent::PeerConnected(peer_id) = &e {
-                                state.connected_peers.write().await.push(*peer_id);
-                            } else if let NetworkEvent::PeerDisconnected(peer_id) = &e {
-                                state.connected_peers.write().await.retain(|p| p != peer_id);
-                            }
-                        }
-                        handle_network_event(&runtime, e).await;
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!("Lagged {} events", n);
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        tracing::info!("Event channel closed");
-                        break;
-                    }
-                }
+        // Get write lock for swarm polling
+        let swarm_event = {
+            let mut network = runtime.network.write().await;
+            // Use poll_next to check for events without blocking forever
+            use futures::StreamExt;
+            tokio::select! {
+                biased;
+
+                event = network.swarm.select_next_some() => Some(event),
+                _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => None,
             }
-            // Periodically update web state
-            _ = stats_interval.tick() => {
+        };
+
+        // Process swarm event if we got one
+        if let Some(event) = swarm_event {
+            let network_event = {
+                let mut network = runtime.network.write().await;
+                network.process_swarm_event(event).await
+            };
+
+            if let Some(e) = network_event {
+                // Update web state peer list if available
                 if let Some(ref state) = web_state {
-                    *state.wallet_balance.write().await = runtime.balance().await;
-                    *state.active_jobs.write().await = runtime.job_manager.read().await.active_jobs().await.len();
-                    *state.completed_jobs.write().await = runtime.job_manager.read().await.completed_jobs(100).await.len();
+                    if let NetworkEvent::PeerConnected(peer_id) = &e {
+                        state.connected_peers.write().await.push(*peer_id);
+                    } else if let NetworkEvent::PeerDisconnected(peer_id) = &e {
+                        state.connected_peers.write().await.retain(|p| p != peer_id);
+                    }
                 }
+                handle_network_event(&runtime, e).await;
             }
-            // Handle shutdown signal
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("Received Ctrl+C, shutting down...");
-                break;
+        }
+
+        // Handle inference requests from web UI (process inline - one at a time)
+        if let Ok(request) = inference_rx.try_recv() {
+            let task = InferenceTask::new(&request.model, &request.prompt)
+                .with_max_tokens(request.max_tokens)
+                .with_temperature(request.temperature);
+
+            let response = match runtime.execute_task(ExecutionTask::Inference(task)).await {
+                Ok(result) => {
+                    match &result.data {
+                        TaskData::Inference(r) => InferenceResponse {
+                            text: r.text.clone(),
+                            tokens_generated: r.tokens_generated,
+                            tokens_per_second: r.tokens_per_second as f32,
+                            location: format!("{:?}", result.location),
+                        },
+                        TaskData::Error(e) => InferenceResponse {
+                            text: format!("Error: {}", e),
+                            tokens_generated: 0,
+                            tokens_per_second: 0.0,
+                            location: "error".to_string(),
+                        },
+                        _ => InferenceResponse {
+                            text: "Unexpected response type".to_string(),
+                            tokens_generated: 0,
+                            tokens_per_second: 0.0,
+                            location: "error".to_string(),
+                        },
+                    }
+                }
+                Err(e) => InferenceResponse {
+                    text: format!("Error: {}", e),
+                    tokens_generated: 0,
+                    tokens_per_second: 0.0,
+                    location: "error".to_string(),
+                },
+            };
+
+            let _ = request.response_tx.send(response);
+        }
+
+        // Handle job submission requests from web UI
+        if let Ok(request) = job_submit_rx.try_recv() {
+            let response = handle_job_submit(&runtime, request.job_type, request.budget, request.payload).await;
+            let _ = request.response_tx.send(response);
+        }
+
+        // Check for shutdown signal
+        if tokio::signal::ctrl_c().now_or_never().is_some() {
+            tracing::info!("Received Ctrl+C, shutting down...");
+            break;
+        }
+
+        // Periodically update web state
+        if stats_interval.tick().now_or_never().is_some() {
+            if let Some(ref state) = web_state {
+                *state.wallet_balance.write().await = runtime.balance().await;
+
+                // Update job counts and list
+                let job_manager = runtime.job_manager.read().await;
+                let active = job_manager.active_jobs().await;
+                let completed = job_manager.completed_jobs(100).await;
+
+                *state.active_jobs.write().await = active.len();
+                *state.completed_jobs.write().await = completed.len();
+
+                // Build job list for display
+                let mut job_list = Vec::new();
+                for job in &active {
+                    let provider_id = &job.bid.bidder_id;
+                    let requester_id = &job.request.requester_id;
+                    job_list.push(WebJobInfo {
+                        id: job.id.to_string(),
+                        job_type: format!("{}", job.request.resource_type),
+                        status: format!("{}", job.status),
+                        provider: Some(format!("...{}", &provider_id[provider_id.len().saturating_sub(8)..])),
+                        requester: format!("...{}", &requester_id[requester_id.len().saturating_sub(8)..]),
+                        price_micro: job.bid.price,
+                        created_at: job.created_at.timestamp() as u64,
+                        location: None,
+                    });
+                }
+                for job in &completed {
+                    let provider_id = &job.bid.bidder_id;
+                    let requester_id = &job.request.requester_id;
+                    job_list.push(WebJobInfo {
+                        id: job.id.to_string(),
+                        job_type: format!("{}", job.request.resource_type),
+                        status: format!("{}", job.status),
+                        provider: Some(format!("...{}", &provider_id[provider_id.len().saturating_sub(8)..])),
+                        requester: format!("...{}", &requester_id[requester_id.len().saturating_sub(8)..]),
+                        price_micro: job.bid.price,
+                        created_at: job.created_at.timestamp() as u64,
+                        location: None,
+                    });
+                }
+                *state.job_list.write().await = job_list;
             }
         }
     }
@@ -253,6 +359,70 @@ async fn handle_network_event(runtime: &Runtime, event: NetworkEvent) {
                 peer_id,
                 manifest
             );
+        }
+    }
+}
+
+/// Handle a job submission from the web UI.
+async fn handle_job_submit(
+    runtime: &Runtime,
+    job_type: String,
+    budget: f64,
+    payload: String,
+) -> JobSubmitResponse {
+    use crate::job::{ResourceType, JobRequest};
+    use crate::wallet::to_micro;
+
+    tracing::info!("Web UI job submission: type={}, budget={}", job_type, budget);
+
+    // Create resource type based on job type
+    let resource_type = match job_type.as_str() {
+        "inference" => ResourceType::Inference {
+            model: "llama-3.2-3b".to_string(),
+            tokens: 500,
+        },
+        "web_fetch" => ResourceType::WebFetch {
+            url_count: 1,
+        },
+        "wasm" => ResourceType::WasmTool {
+            tool_name: payload.clone(),
+            invocations: 1,
+        },
+        _ => {
+            return JobSubmitResponse {
+                success: false,
+                job_id: None,
+                error: Some(format!("Unknown job type: {}", job_type)),
+            };
+        }
+    };
+
+    // Create job request
+    let request = JobRequest::new(
+        resource_type,
+        to_micro(budget),
+        300, // 5 minute timeout
+    )
+    .with_requester(runtime.local_peer_id.to_string())
+    .with_payload(payload.into_bytes());
+
+    // Submit to job manager
+    match runtime.job_manager.write().await.create_request(request).await {
+        Ok(job_id) => {
+            tracing::info!("Job submitted: {}", job_id);
+            JobSubmitResponse {
+                success: true,
+                job_id: Some(job_id.to_string()),
+                error: None,
+            }
+        }
+        Err(e) => {
+            tracing::error!("Job submission failed: {}", e);
+            JobSubmitResponse {
+                success: false,
+                job_id: None,
+                error: Some(e.to_string()),
+            }
         }
     }
 }

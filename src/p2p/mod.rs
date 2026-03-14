@@ -28,7 +28,8 @@ use crate::identity::NodeIdentity;
 
 /// Network controller for managing P2P connections.
 pub struct Network {
-    swarm: Swarm<PeerclawdBehaviour>,
+    /// The libp2p swarm - public for direct polling in serve loop
+    pub swarm: Swarm<PeerclawdBehaviour>,
     event_tx: broadcast::Sender<NetworkEvent>,
     local_peer_id: PeerId,
     connected_peers: HashSet<PeerId>,
@@ -96,7 +97,7 @@ impl Network {
             tokio::select! {
                 // Handle swarm events
                 event = self.swarm.select_next_some() => {
-                    self.handle_swarm_event(event).await;
+                    let _ = self.handle_swarm_event_internal(event).await;
                 }
 
                 // Periodic resource advertisement
@@ -115,64 +116,70 @@ impl Network {
         Ok(())
     }
 
-    /// Handle a swarm event.
-    async fn handle_swarm_event(&mut self, event: SwarmEvent<behaviour::PeerclawdBehaviourEvent>) {
+    /// Process a swarm event and return any resulting NetworkEvent.
+    /// This is called from the serve loop to drive the network.
+    pub async fn process_swarm_event(&mut self, event: SwarmEvent<behaviour::PeerclawdBehaviourEvent>) -> Option<NetworkEvent> {
+        self.handle_swarm_event_internal(event).await
+    }
+
+    /// Handle a swarm event internally.
+    async fn handle_swarm_event_internal(&mut self, event: SwarmEvent<behaviour::PeerclawdBehaviourEvent>) -> Option<NetworkEvent> {
         match event {
             SwarmEvent::NewListenAddr { address, .. } => {
                 tracing::info!("Listening on {}", address);
+                None
             }
 
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 self.connected_peers.insert(peer_id);
                 tracing::info!("Connected to peer: {}", peer_id);
-
-                // Emit event
-                let _ = self.event_tx.send(NetworkEvent::PeerConnected(peer_id));
+                Some(NetworkEvent::PeerConnected(peer_id))
             }
 
             SwarmEvent::ConnectionClosed { peer_id, .. } => {
                 self.connected_peers.remove(&peer_id);
                 tracing::info!("Disconnected from peer: {}", peer_id);
-
-                // Emit event
-                let _ = self.event_tx.send(NetworkEvent::PeerDisconnected(peer_id));
+                Some(NetworkEvent::PeerDisconnected(peer_id))
             }
 
             SwarmEvent::Behaviour(behaviour::PeerclawdBehaviourEvent::Mdns(mdns::Event::Discovered(peers))) => {
-                for (peer_id, addr) in peers {
+                for (peer_id, addr) in &peers {
                     tracing::debug!("mDNS discovered peer: {} at {}", peer_id, addr);
 
                     // Add to Kademlia routing table
                     self.swarm
                         .behaviour_mut()
                         .kademlia
-                        .add_address(&peer_id, addr.clone());
-
-                    // Emit event
-                    let _ = self.event_tx.send(NetworkEvent::PeerDiscovered {
-                        peer_id,
-                        addresses: vec![addr],
-                    });
+                        .add_address(peer_id, addr.clone());
                 }
+                // Return first discovered peer
+                peers.first().map(|(peer_id, addr)| NetworkEvent::PeerDiscovered {
+                    peer_id: *peer_id,
+                    addresses: vec![addr.clone()],
+                })
             }
 
             SwarmEvent::Behaviour(behaviour::PeerclawdBehaviourEvent::Mdns(mdns::Event::Expired(peers))) => {
                 for (peer_id, _) in peers {
                     tracing::debug!("mDNS peer expired: {}", peer_id);
                 }
+                None
             }
 
             SwarmEvent::Behaviour(behaviour::PeerclawdBehaviourEvent::Kademlia(kad::Event::RoutingUpdated { peer, .. })) => {
                 tracing::debug!("Kademlia routing updated for peer: {}", peer);
+                None
             }
 
             SwarmEvent::Behaviour(behaviour::PeerclawdBehaviourEvent::Gossipsub(event)) => {
                 if let libp2p::gossipsub::Event::Message { message, .. } = event {
-                    let _ = self.event_tx.send(NetworkEvent::GossipMessage {
+                    Some(NetworkEvent::GossipMessage {
                         topic: message.topic.to_string(),
                         data: message.data,
                         source: message.source,
-                    });
+                    })
+                } else {
+                    None
                 }
             }
 
@@ -193,9 +200,10 @@ impl Network {
                             .add_address(&peer_id, addr);
                     }
                 }
+                None
             }
 
-            _ => {}
+            _ => None,
         }
     }
 

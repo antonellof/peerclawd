@@ -84,6 +84,41 @@
             height: calc(100vh - 70px);
         }
 
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            background: var(--bg-tertiary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         .panel {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -209,6 +244,8 @@
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
         }
 
         .job-item {
@@ -217,25 +254,37 @@
             padding: 0.75rem;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
         }
 
         .job-info {
             display: flex;
             flex-direction: column;
             gap: 0.25rem;
+            flex: 1;
+        }
+
+        .job-type {
+            font-weight: 500;
+            font-size: 0.875rem;
         }
 
         .job-id {
             font-family: monospace;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .job-meta {
+            font-size: 0.7rem;
             color: var(--text-secondary);
         }
 
         .job-status {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             padding: 0.125rem 0.5rem;
             border-radius: 4px;
+            white-space: nowrap;
         }
 
         .job-status.running {
@@ -246,6 +295,140 @@
         .job-status.completed {
             background: rgba(63, 185, 80, 0.2);
             color: var(--success);
+        }
+
+        .job-price {
+            font-size: 0.7rem;
+            color: var(--warning);
+            margin-top: 0.25rem;
+        }
+
+        .job-location {
+            font-size: 0.65rem;
+            color: var(--accent);
+            font-style: italic;
+        }
+
+        /* Job submission form */
+        .job-form {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .job-form h3 {
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .submit-job-btn {
+            background: var(--success);
+            border: none;
+            border-radius: 4px;
+            padding: 0.5rem 1rem;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 0.8rem;
+            width: 100%;
+        }
+
+        .submit-job-btn:hover {
+            opacity: 0.9;
+        }
+
+        .submit-job-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Distribution chart */
+        .distribution-chart {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+        }
+
+        .distribution-chart h4 {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .dist-bar-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .dist-label {
+            width: 80px;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dist-bar {
+            flex: 1;
+            height: 12px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0 0.5rem;
+        }
+
+        .dist-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .dist-bar-fill.local { background: var(--accent); }
+        .dist-bar-fill.remote { background: var(--success); }
+
+        .dist-count {
+            width: 30px;
+            font-size: 0.7rem;
+            color: var(--text-primary);
+            text-align: right;
         }
 
         /* Chat Panel */
@@ -466,7 +649,10 @@
 
         <div class="panel chat-panel">
             <div class="panel-header">
-                <h2>AI Chat</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="chat">AI Chat</button>
+                    <button class="tab-btn" data-tab="jobs">Jobs</button>
+                </div>
                 <select id="model-select" style="background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; padding: 0.25rem 0.5rem; color: var(--text-primary);">
                     <option value="llama-3.2-3b">Llama 3.2 3B</option>
                     <option value="llama-3.2-1b">Llama 3.2 1B</option>
@@ -474,17 +660,76 @@
                 </select>
             </div>
             <div class="panel-content">
-                <div class="chat-messages" id="chat-messages">
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        <p>Start a conversation with the AI</p>
+                <!-- Chat Tab -->
+                <div id="tab-chat" class="tab-content active" style="display: flex; flex-direction: column; height: 100%;">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            <p>Start a conversation with the AI</p>
+                        </div>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." autocomplete="off">
+                        <button class="chat-send" id="chat-send">Send</button>
                     </div>
                 </div>
-                <div class="chat-input-area">
-                    <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." autocomplete="off">
-                    <button class="chat-send" id="chat-send">Send</button>
+
+                <!-- Jobs Tab -->
+                <div id="tab-jobs" class="tab-content" style="height: 100%; overflow: auto; padding: 0.5rem;">
+                    <!-- Job Submission Form -->
+                    <div class="job-form">
+                        <h3>Submit New Job</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Job Type</label>
+                                <select id="job-type">
+                                    <option value="inference">Inference</option>
+                                    <option value="web_fetch">Web Fetch</option>
+                                    <option value="wasm">WASM Tool</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Max Budget (PCLAW)</label>
+                                <input type="number" id="job-budget" value="1.0" step="0.1" min="0.1">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Prompt / URL / Tool Name</label>
+                            <textarea id="job-payload" placeholder="Enter prompt for inference, URL for web fetch, or tool name for WASM..."></textarea>
+                        </div>
+                        <button class="submit-job-btn" id="submit-job-btn">Submit Job to Network</button>
+                    </div>
+
+                    <!-- Distribution Chart -->
+                    <div class="distribution-chart" id="distribution-chart">
+                        <h4>Job Distribution</h4>
+                        <div id="dist-bars">
+                            <div class="dist-bar-container">
+                                <span class="dist-label">Local</span>
+                                <div class="dist-bar">
+                                    <div class="dist-bar-fill local" id="dist-local" style="width: 0%"></div>
+                                </div>
+                                <span class="dist-count" id="dist-local-count">0</span>
+                            </div>
+                            <div class="dist-bar-container">
+                                <span class="dist-label">Network</span>
+                                <div class="dist-bar">
+                                    <div class="dist-bar-fill remote" id="dist-remote" style="width: 0%"></div>
+                                </div>
+                                <span class="dist-count" id="dist-remote-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Jobs List -->
+                    <h4 style="font-size: 0.75rem; color: var(--text-secondary); margin: 1rem 0 0.5rem;">Recent Jobs</h4>
+                    <div id="jobs-list" class="jobs-list">
+                        <div class="empty-state" style="padding: 1rem;">
+                            <p style="font-size: 0.8rem;">No jobs yet - submit one above!</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -596,9 +841,10 @@
                 .attr('height', height);
 
             // Create nodes data
+            // Peer IDs start with "12D3KooW" so use the last 8 chars for a unique label
             const nodes = [
                 { id: localPeerId || 'local', type: 'local', label: 'You' },
-                ...peers.map(p => ({ id: p.id, type: 'peer', label: p.id.substring(0, 8) }))
+                ...peers.map(p => ({ id: p.id, type: 'peer', label: '...' + p.id.slice(-8) }))
             ];
 
             // Create links from local to all peers
@@ -743,14 +989,159 @@
             if (e.key === 'Enter') sendMessage();
         });
 
+        // Tab switching
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.dataset.tab;
+
+                // Update button states
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Show/hide content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                    content.style.display = 'none';
+                });
+                const activeTab = document.getElementById(`tab-${tabName}`);
+                activeTab.classList.add('active');
+                activeTab.style.display = tabName === 'chat' ? 'flex' : 'block';
+
+                // Hide model select for jobs tab
+                document.getElementById('model-select').style.display =
+                    tabName === 'chat' ? 'block' : 'none';
+            });
+        });
+
+        // Fetch and display jobs
+        let jobs = [];
+        async function fetchJobs() {
+            try {
+                const response = await fetch('/api/jobs');
+                jobs = await response.json();
+                renderJobs();
+            } catch (error) {
+                console.error('Failed to fetch jobs:', error);
+            }
+        }
+
+        function renderJobs() {
+            const jobsList = document.getElementById('jobs-list');
+
+            if (jobs.length === 0) {
+                jobsList.innerHTML = `
+                    <div class="empty-state" style="padding: 1rem;">
+                        <p style="font-size: 0.8rem;">No jobs yet - submit one above!</p>
+                    </div>
+                `;
+                updateDistribution();
+                return;
+            }
+
+            jobsList.innerHTML = jobs.map(job => {
+                const statusClass = job.status.toLowerCase().includes('progress') || job.status.toLowerCase() === 'pending'
+                    ? 'running' : 'completed';
+                const price = (job.price_micro / 1000000).toFixed(6);
+                const provider = job.provider || 'Local';
+                const location = job.location || (provider === 'Local' ? 'Local' : 'Network');
+
+                return `
+                    <div class="job-item">
+                        <div class="job-info">
+                            <div class="job-type">${job.job_type}</div>
+                            <div class="job-id">${job.id.substring(0, 20)}...</div>
+                            <div class="job-meta">
+                                Provider: ${provider} | Requester: ${job.requester}
+                            </div>
+                            <div class="job-price">${price} PCLAW</div>
+                            <div class="job-location">Executed: ${location}</div>
+                        </div>
+                        <span class="job-status ${statusClass}">${job.status}</span>
+                    </div>
+                `;
+            }).join('');
+
+            updateDistribution();
+        }
+
+        // Update distribution chart
+        function updateDistribution() {
+            let localCount = 0;
+            let remoteCount = 0;
+
+            jobs.forEach(job => {
+                const provider = job.provider || '';
+                if (provider === 'Local' || provider === '' || provider.includes(localPeerId?.slice(-8))) {
+                    localCount++;
+                } else {
+                    remoteCount++;
+                }
+            });
+
+            const total = localCount + remoteCount || 1;
+            const localPct = (localCount / total) * 100;
+            const remotePct = (remoteCount / total) * 100;
+
+            document.getElementById('dist-local').style.width = `${localPct}%`;
+            document.getElementById('dist-remote').style.width = `${remotePct}%`;
+            document.getElementById('dist-local-count').textContent = localCount;
+            document.getElementById('dist-remote-count').textContent = remoteCount;
+        }
+
+        // Job submission
+        const submitJobBtn = document.getElementById('submit-job-btn');
+        submitJobBtn.addEventListener('click', async () => {
+            const jobType = document.getElementById('job-type').value;
+            const budget = parseFloat(document.getElementById('job-budget').value);
+            const payload = document.getElementById('job-payload').value.trim();
+
+            if (!payload) {
+                alert('Please enter a prompt, URL, or tool name');
+                return;
+            }
+
+            submitJobBtn.disabled = true;
+            submitJobBtn.textContent = 'Submitting...';
+
+            try {
+                const response = await fetch('/api/jobs/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        job_type: jobType,
+                        budget: budget,
+                        payload: payload
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('job-payload').value = '';
+                    // Refresh jobs list
+                    await fetchJobs();
+                } else {
+                    alert('Failed to submit job: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error submitting job: ' + error.message);
+            }
+
+            submitJobBtn.disabled = false;
+            submitJobBtn.textContent = 'Submit Job to Network';
+        });
+
         // Initialize
         connectWebSocket();
         fetchStatus();
         fetchPeers();
+        fetchJobs();
 
         // Poll for updates
         setInterval(fetchStatus, 5000);
         setInterval(fetchPeers, 10000);
+        setInterval(fetchJobs, 5000);
 
         // Handle resize
         window.addEventListener('resize', updateNetworkGraph);

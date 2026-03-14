@@ -16,11 +16,56 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, mpsc};
 use libp2p::PeerId;
 
-use crate::executor::{ResourceMonitor, ResourceState};
+use crate::executor::ResourceMonitor;
 use crate::wallet::from_micro;
+
+/// Request for inference from web UI
+pub struct InferenceRequest {
+    pub prompt: String,
+    pub model: String,
+    pub max_tokens: u32,
+    pub temperature: f32,
+    pub response_tx: tokio::sync::oneshot::Sender<InferenceResponse>,
+}
+
+/// Response to inference request
+pub struct InferenceResponse {
+    pub text: String,
+    pub tokens_generated: u32,
+    pub tokens_per_second: f32,
+    pub location: String,
+}
+
+/// Request for job submission from web UI
+pub struct JobSubmitRequest {
+    pub job_type: String,
+    pub budget: f64,
+    pub payload: String,
+    pub response_tx: tokio::sync::oneshot::Sender<JobSubmitResponse>,
+}
+
+/// Response to job submission
+pub struct JobSubmitResponse {
+    pub success: bool,
+    pub job_id: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Detailed job information for display.
+#[derive(Clone, Serialize)]
+pub struct WebJobInfo {
+    pub id: String,
+    pub job_type: String,
+    pub status: String,
+    pub provider: Option<String>,
+    pub requester: String,
+    pub price_micro: u64,
+    pub created_at: u64,
+    pub location: Option<String>,
+}
 
 /// Web server state - contains only Send/Sync safe components.
 pub struct WebState {
@@ -33,6 +78,12 @@ pub struct WebState {
     pub active_jobs: Arc<RwLock<usize>>,
     /// Completed jobs count
     pub completed_jobs: Arc<RwLock<usize>>,
+    /// Detailed job list for display
+    pub job_list: Arc<RwLock<Vec<WebJobInfo>>>,
+    /// Channel for receiving inference requests from web UI
+    pub inference_tx: Option<mpsc::Sender<InferenceRequest>>,
+    /// Channel for receiving job submission requests from web UI
+    pub job_submit_tx: Option<mpsc::Sender<JobSubmitRequest>>,
 }
 
 /// Create the web router.
@@ -42,12 +93,13 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/api/status", get(api_status))
         .route("/api/peers", get(api_peers))
         .route("/api/jobs", get(api_jobs))
+        .route("/api/jobs/submit", post(api_submit_job))
         .route("/api/chat", post(api_chat))
         .route("/ws", get(ws_handler))
         .with_state(state)
 }
 
-/// Create WebState for the dashboard.
+/// Create WebState for the dashboard (basic version without inference).
 pub fn create_web_state(
     local_peer_id: PeerId,
     resource_monitor: Arc<ResourceMonitor>,
@@ -59,6 +111,48 @@ pub fn create_web_state(
         connected_peers: Arc::new(RwLock::new(Vec::new())),
         active_jobs: Arc::new(RwLock::new(0)),
         completed_jobs: Arc::new(RwLock::new(0)),
+        job_list: Arc::new(RwLock::new(Vec::new())),
+        inference_tx: None,
+        job_submit_tx: None,
+    })
+}
+
+/// Create WebState with inference and job submission channels.
+pub fn create_web_state_with_channels(
+    local_peer_id: PeerId,
+    resource_monitor: Arc<ResourceMonitor>,
+    inference_tx: mpsc::Sender<InferenceRequest>,
+    job_submit_tx: mpsc::Sender<JobSubmitRequest>,
+) -> Arc<WebState> {
+    Arc::new(WebState {
+        local_peer_id,
+        resource_monitor,
+        wallet_balance: Arc::new(RwLock::new(0)),
+        connected_peers: Arc::new(RwLock::new(Vec::new())),
+        active_jobs: Arc::new(RwLock::new(0)),
+        completed_jobs: Arc::new(RwLock::new(0)),
+        job_list: Arc::new(RwLock::new(Vec::new())),
+        inference_tx: Some(inference_tx),
+        job_submit_tx: Some(job_submit_tx),
+    })
+}
+
+/// Create WebState with inference channel only (legacy).
+pub fn create_web_state_with_inference(
+    local_peer_id: PeerId,
+    resource_monitor: Arc<ResourceMonitor>,
+    inference_tx: mpsc::Sender<InferenceRequest>,
+) -> Arc<WebState> {
+    Arc::new(WebState {
+        local_peer_id,
+        resource_monitor,
+        wallet_balance: Arc::new(RwLock::new(0)),
+        connected_peers: Arc::new(RwLock::new(Vec::new())),
+        active_jobs: Arc::new(RwLock::new(0)),
+        completed_jobs: Arc::new(RwLock::new(0)),
+        job_list: Arc::new(RwLock::new(Vec::new())),
+        inference_tx: Some(inference_tx),
+        job_submit_tx: None,
     })
 }
 
@@ -140,48 +234,157 @@ async fn api_peers(State(state): State<Arc<WebState>>) -> Json<Vec<PeerInfo>> {
     Json(peer_infos)
 }
 
-#[derive(Serialize)]
-struct JobInfo {
-    id: String,
-    status: String,
-    provider: String,
-    price: f64,
+async fn api_jobs(State(state): State<Arc<WebState>>) -> Json<Vec<WebJobInfo>> {
+    let jobs = state.job_list.read().await;
+    Json(jobs.clone())
 }
 
-async fn api_jobs(State(_state): State<Arc<WebState>>) -> Json<Vec<JobInfo>> {
-    // Jobs list is not available in simplified web state
-    // Return empty for now - could be enhanced with a channel-based update mechanism
-    Json(vec![])
+#[derive(Deserialize)]
+struct JobSubmitPayload {
+    job_type: String,
+    budget: f64,
+    payload: String,
+}
+
+#[derive(Serialize)]
+struct JobSubmitResult {
+    success: bool,
+    job_id: Option<String>,
+    error: Option<String>,
+}
+
+async fn api_submit_job(
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<JobSubmitPayload>,
+) -> Json<JobSubmitResult> {
+    // If we have a job submission channel, use it
+    if let Some(tx) = &state.job_submit_tx {
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+
+        let request = JobSubmitRequest {
+            job_type: req.job_type,
+            budget: req.budget,
+            payload: req.payload,
+            response_tx,
+        };
+
+        if tx.send(request).await.is_ok() {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                response_rx,
+            ).await {
+                Ok(Ok(response)) => {
+                    return Json(JobSubmitResult {
+                        success: response.success,
+                        job_id: response.job_id,
+                        error: response.error,
+                    });
+                }
+                Ok(Err(_)) => {
+                    return Json(JobSubmitResult {
+                        success: false,
+                        job_id: None,
+                        error: Some("Job submission cancelled".to_string()),
+                    });
+                }
+                Err(_) => {
+                    return Json(JobSubmitResult {
+                        success: false,
+                        job_id: None,
+                        error: Some("Job submission timeout".to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback: no job submission channel
+    Json(JobSubmitResult {
+        success: false,
+        job_id: None,
+        error: Some("Job submission not available. Restart node with full features.".to_string()),
+    })
 }
 
 #[derive(Deserialize)]
 struct ChatRequest {
     message: String,
     model: Option<String>,
+    max_tokens: Option<u32>,
+    temperature: Option<f32>,
 }
 
 #[derive(Serialize)]
 struct ChatResponse {
     response: String,
     tokens: u32,
-    time_ms: u64,
+    tokens_per_second: f32,
+    location: String,
 }
 
 async fn api_chat(
-    State(_state): State<Arc<WebState>>,
+    State(state): State<Arc<WebState>>,
     Json(req): Json<ChatRequest>,
 ) -> Json<ChatResponse> {
-    // Chat functionality requires full runtime access
-    // For now, return a placeholder message directing users to CLI
     let model = req.model.unwrap_or_else(|| "llama-3.2-3b".to_string());
+    let max_tokens = req.max_tokens.unwrap_or(500);
+    let temperature = req.temperature.unwrap_or(0.7);
+
+    // If we have an inference channel, use it
+    if let Some(tx) = &state.inference_tx {
+        let (response_tx, response_rx) = tokio::sync::oneshot::channel();
+
+        let request = InferenceRequest {
+            prompt: req.message,
+            model: model.clone(),
+            max_tokens,
+            temperature,
+            response_tx,
+        };
+
+        if tx.send(request).await.is_ok() {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(60),
+                response_rx,
+            ).await {
+                Ok(Ok(response)) => {
+                    return Json(ChatResponse {
+                        response: response.text,
+                        tokens: response.tokens_generated,
+                        tokens_per_second: response.tokens_per_second,
+                        location: response.location,
+                    });
+                }
+                Ok(Err(_)) => {
+                    return Json(ChatResponse {
+                        response: "Error: Inference task cancelled".to_string(),
+                        tokens: 0,
+                        tokens_per_second: 0.0,
+                        location: "error".to_string(),
+                    });
+                }
+                Err(_) => {
+                    return Json(ChatResponse {
+                        response: "Error: Inference timeout (60s)".to_string(),
+                        tokens: 0,
+                        tokens_per_second: 0.0,
+                        location: "error".to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback: direct users to CLI
     Json(ChatResponse {
         response: format!(
             "Chat is available via CLI: peerclawd chat --model {}\n\n\
-            Web-based chat will be available in a future update.",
+            To enable web chat, restart the node with inference support.",
             model
         ),
         tokens: 0,
-        time_ms: 0,
+        tokens_per_second: 0.0,
+        location: "none".to_string(),
     })
 }
 
