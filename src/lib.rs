@@ -8,6 +8,7 @@ pub mod cli;
 pub mod config;
 pub mod db;
 pub mod identity;
+pub mod job;
 pub mod node;
 pub mod p2p;
 pub mod wallet;
