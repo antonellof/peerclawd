@@ -10,8 +10,10 @@ pub mod db;
 pub mod identity;
 pub mod node;
 pub mod p2p;
+pub mod wallet;
 
 // Re-export commonly used types
 pub use config::Config;
 pub use identity::NodeIdentity;
 pub use node::Node;
+pub use wallet::{Wallet, WalletConfig};

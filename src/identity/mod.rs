@@ -115,6 +115,17 @@ impl std::fmt::Debug for NodeIdentity {
     }
 }
 
+impl Clone for NodeIdentity {
+    fn clone(&self) -> Self {
+        // Clone by reconstructing from the signing key bytes
+        let signing_key = SigningKey::from_bytes(&self.signing_key.to_bytes());
+        Self {
+            signing_key,
+            peer_id: self.peer_id,
+        }
+    }
+}
+
 /// Serializable identity info for storage and display.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityInfo {
