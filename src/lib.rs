@@ -16,6 +16,7 @@ pub mod node;
 pub mod p2p;
 pub mod proxy;
 pub mod wallet;
+pub mod wasm;
 
 // Re-export commonly used types
 pub use config::Config;
