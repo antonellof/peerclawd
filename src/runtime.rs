@@ -15,7 +15,7 @@ use crate::executor::{
     ExecutorConfig, MonitorConfig, ResourceMonitor, RouterConfig, TaskExecutor,
 };
 use crate::executor::remote::{JobProvider, RemoteExecutor, RemoteExecutorConfig};
-use crate::executor::task::{ExecutionTask, InferenceTask, TaskResult, WebFetchTask};
+use crate::executor::task::{ExecutionTask, InferenceTask, TaskResult, WebFetchTask, TaskData};
 use crate::identity::NodeIdentity;
 use crate::inference::{InferenceConfig, InferenceEngine, ModelDistributor};
 use crate::job::{JobManager, PricingStrategy, network as job_network};
@@ -217,20 +217,164 @@ impl Runtime {
             }
             t if t == job_network::topics::JOB_STATUS => {
                 if let Ok(msg) = job_network::deserialize_message(&data) {
-                    if let job_network::JobMessage::BidAccepted(accept_msg) = msg {
-                        tracing::info!(
-                            job_id = %accept_msg.job_id,
-                            winner = %accept_msg.winner_peer_id,
-                            "Bid accepted"
-                        );
-                        if let Err(e) = self.job_provider.handle_bid_accepted(accept_msg).await {
-                            tracing::warn!(error = %e, "Failed to handle bid acceptance");
+                    match msg {
+                        job_network::JobMessage::BidAccepted(accept_msg) => {
+                            tracing::info!(
+                                job_id = %accept_msg.job_id,
+                                winner = %accept_msg.winner_peer_id,
+                                "Bid accepted"
+                            );
+
+                            // Check if we're the winner
+                            if accept_msg.winner_peer_id == self.local_peer_id.to_string() {
+                                tracing::info!(job_id = %accept_msg.job_id, "We won the bid! Executing job...");
+
+                                // Get the request and execute it
+                                let job_id = accept_msg.job_id.clone();
+                                if let Some(request) = self.job_provider.get_pending_request(&job_id).await {
+                                    self.execute_provider_job(job_id, request).await;
+                                }
+                            }
+
+                            if let Err(e) = self.job_provider.handle_bid_accepted(accept_msg).await {
+                                tracing::warn!(error = %e, "Failed to handle bid acceptance");
+                            }
                         }
+                        job_network::JobMessage::Result(result_msg) => {
+                            tracing::info!(
+                                job_id = %result_msg.job_id,
+                                provider = %result_msg.provider_peer_id,
+                                "Received job result"
+                            );
+                            // Store result if we're the requester
+                            {
+                                let mut job_manager = self.job_manager.write().await;
+                                if let Err(e) = job_manager
+                                    .submit_result(&result_msg.job_id, result_msg.result).await {
+                                    tracing::warn!(error = %e, "Failed to store job result");
+                                } else {
+                                    // Auto-settle the job (verify and release payment)
+                                    if let Err(e) = job_manager.settle_job(&result_msg.job_id, true).await {
+                                        tracing::warn!(error = %e, "Failed to settle job");
+                                    } else {
+                                        tracing::info!(job_id = %result_msg.job_id, "Job settled successfully");
+                                    }
+                                }
+                            }
+                        }
+                        job_network::JobMessage::StatusUpdate(status_msg) => {
+                            tracing::debug!(
+                                job_id = %status_msg.job_id,
+                                status = ?status_msg.status,
+                                "Job status update"
+                            );
+                        }
+                        _ => {}
                     }
                 }
             }
             _ => {}
         }
+    }
+}
+
+impl Runtime {
+    /// Execute a job as a provider (when our bid was accepted).
+    pub async fn execute_provider_job(&self, job_id: crate::job::JobId, request: crate::job::JobRequest) {
+        use crate::executor::task::{ExecutionTask, InferenceTask, WebFetchTask, TaskData};
+        use crate::job::{JobResult, ActualUsage, ExecutionMetrics};
+        use crate::job::network::{JobMessage, JobResultMessage, JobStatusMessage, JobStatusUpdate, serialize_message, topics};
+
+        tracing::info!(job_id = %job_id, "Executing job as provider");
+
+        // Broadcast that we're starting
+        let status_msg = JobMessage::StatusUpdate(JobStatusMessage {
+            job_id: job_id.clone(),
+            status: JobStatusUpdate::Started,
+            peer_id: self.local_peer_id.to_string(),
+            timestamp: chrono::Utc::now().timestamp() as u64,
+        });
+        if let Ok(data) = serialize_message(&status_msg) {
+            let _ = self.network.write().await.publish(topics::JOB_STATUS, data);
+        }
+
+        // Execute based on resource type
+        let payload = request.payload.as_ref().map(|p| p.as_slice()).unwrap_or(&[]);
+        let result = match &request.resource_type {
+            crate::job::ResourceType::Inference { model, tokens } => {
+                let prompt_cow = String::from_utf8_lossy(payload);
+                let prompt: &str = if prompt_cow.is_empty() { "Hello" } else { prompt_cow.as_ref() };
+
+                let task = InferenceTask::new(model, prompt)
+                    .with_max_tokens(*tokens);
+
+                match self.executor.execute(ExecutionTask::Inference(task)).await {
+                    Ok(task_result) => {
+                        match &task_result.data {
+                            TaskData::Inference(r) => {
+                                JobResult::new(r.text.as_bytes().to_vec())
+                                    .with_usage(ActualUsage {
+                                        tokens: Some(r.tokens_generated),
+                                        compute_time_ms: Some(task_result.metrics.total_time_ms),
+                                        bytes: None,
+                                    })
+                                    .with_metrics(ExecutionMetrics {
+                                        ttfb_ms: task_result.metrics.ttfb_ms,
+                                        total_time_ms: task_result.metrics.total_time_ms,
+                                        tokens_per_sec: Some(r.tokens_per_second),
+                                    })
+                            }
+                            _ => JobResult::new(b"Unexpected result type".to_vec()),
+                        }
+                    }
+                    Err(e) => JobResult::new(format!("Error: {}", e).into_bytes()),
+                }
+            }
+            crate::job::ResourceType::WebFetch { url_count: _ } => {
+                let url = String::from_utf8_lossy(payload);
+                let task = WebFetchTask::get(url.as_ref());
+
+                match self.executor.execute(ExecutionTask::WebFetch(task)).await {
+                    Ok(task_result) => {
+                        match &task_result.data {
+                            TaskData::WebFetch(r) => {
+                                JobResult::new(r.body.clone())
+                                    .with_usage(ActualUsage {
+                                        tokens: None,
+                                        compute_time_ms: Some(task_result.metrics.total_time_ms),
+                                        bytes: Some(r.body.len() as u64),
+                                    })
+                            }
+                            _ => JobResult::new(b"Unexpected result type".to_vec()),
+                        }
+                    }
+                    Err(e) => JobResult::new(format!("Error: {}", e).into_bytes()),
+                }
+            }
+            _ => {
+                JobResult::new(b"Unsupported resource type".to_vec())
+            }
+        };
+
+        tracing::info!(job_id = %job_id, "Job execution complete, sending result");
+
+        // Broadcast result
+        let result_msg = JobMessage::Result(JobResultMessage {
+            job_id: job_id.clone(),
+            result: result.clone(),
+            provider_peer_id: self.local_peer_id.to_string(),
+            signature: vec![],
+        });
+        if let Ok(data) = serialize_message(&result_msg) {
+            if let Err(e) = self.network.write().await.publish(topics::JOB_STATUS, data) {
+                tracing::warn!("Failed to broadcast result: {}", e);
+            }
+        }
+
+        // Remove from pending
+        self.job_provider.remove_pending_request(&job_id).await;
+
+        tracing::info!(job_id = %job_id, "Provider job completed");
     }
 }
 

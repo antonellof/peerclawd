@@ -5,14 +5,14 @@
 
 mod pricing;
 mod request;
-mod bid;
-mod execution;
+pub mod bid;
+pub mod execution;
 pub mod network;
 
 pub use pricing::{ResourceType, ResourcePricing, PricingStrategy};
 pub use request::{JobRequest, JobRequirements, JobId};
-pub use bid::{JobBid, BidId, BidStatus};
-pub use execution::{Job, JobStatus, JobResult};
+pub use bid::{JobBid, BidId, BidStatus, select_best_bid};
+pub use execution::{Job, JobStatus, JobResult, ActualUsage, ExecutionMetrics};
 pub use network::{JobMessage, topics as job_topics};
 
 use crate::wallet::{Wallet, EscrowId, WalletError};

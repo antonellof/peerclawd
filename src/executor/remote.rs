@@ -326,6 +326,8 @@ pub struct JobProvider {
     job_manager: Arc<RwLock<JobManager>>,
     network: Arc<RwLock<Network>>,
     local_peer_id: PeerId,
+    /// Pending requests we've bid on (stored for execution when accepted)
+    pending_requests: RwLock<std::collections::HashMap<JobId, JobRequest>>,
 }
 
 impl JobProvider {
@@ -338,11 +340,17 @@ impl JobProvider {
             job_manager,
             network,
             local_peer_id,
+            pending_requests: RwLock::new(std::collections::HashMap::new()),
         }
     }
 
     /// Handle an incoming job request.
     pub async fn handle_request(&self, msg: JobRequestMessage) -> Result<(), String> {
+        // Don't bid on our own requests
+        if msg.requester_peer_id == self.local_peer_id.to_string() {
+            return Ok(());
+        }
+
         // Evaluate if we want to bid
         let bid = self
             .job_manager
@@ -354,6 +362,9 @@ impl JobProvider {
         if let Some(mut bid) = bid {
             // Update with actual peer ID
             bid.bidder_id = self.local_peer_id.to_string();
+
+            // Store the request so we can execute it later if our bid is accepted
+            self.pending_requests.write().await.insert(msg.request.id.clone(), msg.request.clone());
 
             // Send bid
             let bid_msg = JobMessage::Bid(JobBidMessage::new(bid.clone(), &self.local_peer_id));
@@ -382,12 +393,34 @@ impl JobProvider {
             return Ok(()); // Not for us
         }
 
-        tracing::info!(job_id = %msg.job_id, "Our bid was accepted, executing job");
+        tracing::info!(job_id = %msg.job_id, "Our bid was accepted, preparing to execute job");
 
-        // TODO: Execute the job locally
-        // This would call the local TaskExecutor
+        // Get the request we bid on
+        let request = self.pending_requests.write().await.remove(&msg.job_id);
+
+        if let Some(request) = request {
+            tracing::info!(
+                job_id = %msg.job_id,
+                resource_type = %request.resource_type,
+                "Found request, will execute when provider calls execute_accepted_job"
+            );
+            // Note: Actual execution happens in serve.rs via execute_job_locally
+            // because we need access to the TaskExecutor which isn't available here
+        } else {
+            tracing::warn!(job_id = %msg.job_id, "Request not found in pending requests");
+        }
 
         Ok(())
+    }
+
+    /// Get a pending request by job ID (for execution).
+    pub async fn get_pending_request(&self, job_id: &JobId) -> Option<JobRequest> {
+        self.pending_requests.read().await.get(job_id).cloned()
+    }
+
+    /// Remove a pending request after execution.
+    pub async fn remove_pending_request(&self, job_id: &JobId) -> Option<JobRequest> {
+        self.pending_requests.write().await.remove(job_id)
     }
 }
 

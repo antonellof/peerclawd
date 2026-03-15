@@ -171,6 +171,12 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
     // Interval for advertising resources
     let mut advertise_interval = tokio::time::interval(std::time::Duration::from_secs(30));
 
+    // Interval for auto-accepting bids on pending jobs (after bid collection period)
+    let mut bid_accept_interval = tokio::time::interval(std::time::Duration::from_secs(3));
+
+    // Track when each job was created for bid collection timeout
+    let mut job_creation_times: std::collections::HashMap<crate::job::JobId, std::time::Instant> = std::collections::HashMap::new();
+
     // Run event loop until shutdown - poll swarm directly
     loop {
         // Get write lock for swarm polling
@@ -329,6 +335,11 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
                 *state.job_list.write().await = job_list;
             }
         }
+
+        // Auto-accept bids for our pending requests after bid collection period
+        if bid_accept_interval.tick().now_or_never().is_some() {
+            auto_accept_bids(&runtime, &mut job_creation_times).await;
+        }
     }
 
     let final_stats = runtime.stats().await;
@@ -466,4 +477,229 @@ async fn handle_job_submit(
         job_id: Some(job_id.to_string()),
         error: None,
     }
+}
+
+/// Auto-accept best bids for pending requests after bid collection period.
+async fn auto_accept_bids(
+    runtime: &Runtime,
+    job_creation_times: &mut std::collections::HashMap<crate::job::JobId, std::time::Instant>,
+) {
+    use crate::job::select_best_bid;
+    use crate::job::network::{JobMessage, BidAcceptedMessage, serialize_message, topics};
+
+    // Get pending requests that might need bid acceptance
+    let pending = runtime.job_manager.read().await.pending_requests().await;
+
+    // Track creation times for new jobs
+    let now = std::time::Instant::now();
+    for req in &pending {
+        job_creation_times.entry(req.id.clone()).or_insert(now);
+    }
+
+    // BID_COLLECTION_TIMEOUT: wait 5 seconds for bids before accepting
+    const BID_COLLECTION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+    for req in pending {
+        // Only process requests we created (our peer ID)
+        if req.requester_id != runtime.local_peer_id.to_string() {
+            continue;
+        }
+
+        // Check if enough time has passed for bid collection
+        let created_at = job_creation_times.get(&req.id);
+        if let Some(&create_time) = created_at {
+            if now.duration_since(create_time) < BID_COLLECTION_TIMEOUT {
+                continue; // Still collecting bids
+            }
+        }
+
+        // Get bids for this job
+        let bids = runtime.job_manager.read().await.get_bids(&req.id).await;
+
+        if bids.is_empty() {
+            tracing::debug!(job_id = %req.id, "No bids received yet, waiting...");
+            continue;
+        }
+
+        // Select best bid
+        if let Some(best_bid) = select_best_bid(&bids, None) {
+            tracing::info!(
+                job_id = %req.id,
+                provider = %best_bid.bidder_id,
+                price = best_bid.price,
+                "Auto-accepting best bid"
+            );
+
+            // Accept the bid
+            match runtime.job_manager.write().await.accept_bid(&req.id, &best_bid.id).await {
+                Ok(job) => {
+                    // Remove from tracking
+                    job_creation_times.remove(&req.id);
+
+                    // Broadcast acceptance to network
+                    let accept_msg = JobMessage::BidAccepted(BidAcceptedMessage {
+                        job_id: req.id.clone(),
+                        bid_id: best_bid.id.0.clone(),
+                        winner_peer_id: best_bid.bidder_id.clone(),
+                        escrow_id: job.escrow_id.0.clone(),
+                        signature: vec![],
+                    });
+
+                    if let Ok(data) = serialize_message(&accept_msg) {
+                        let mut network = runtime.network.write().await;
+                        if let Err(e) = network.publish(topics::JOB_STATUS, data) {
+                            tracing::warn!("Failed to broadcast bid acceptance: {}", e);
+                        } else {
+                            tracing::info!(job_id = %req.id, "Bid acceptance broadcast to network");
+                        }
+                    }
+
+                    // If the winner is us (local execution), execute immediately
+                    if best_bid.bidder_id == runtime.local_peer_id.to_string() {
+                        tracing::info!(job_id = %req.id, "Executing job locally (we are the provider)");
+                        let job_id = req.id.clone();
+                        let payload = req.payload.clone().unwrap_or_default();
+                        let resource_type = req.resource_type.clone();
+
+                        execute_job_locally(
+                            job_id,
+                            resource_type,
+                            payload,
+                            runtime.job_manager.clone(),
+                            runtime.executor.clone(),
+                            runtime.network.clone(),
+                            *runtime.identity.peer_id(),
+                        ).await;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(job_id = %req.id, error = %e, "Failed to accept bid");
+                }
+            }
+        }
+    }
+}
+
+/// Execute a job locally when we are the provider.
+async fn execute_job_locally(
+    job_id: crate::job::JobId,
+    resource_type: crate::job::ResourceType,
+    payload: Vec<u8>,
+    job_manager: std::sync::Arc<tokio::sync::RwLock<crate::job::JobManager>>,
+    executor: std::sync::Arc<crate::executor::TaskExecutor>,
+    network: std::sync::Arc<tokio::sync::RwLock<crate::p2p::Network>>,
+    local_peer_id: libp2p::PeerId,
+) {
+    use crate::job::network::{JobMessage, JobResultMessage, JobStatusMessage, JobStatusUpdate, serialize_message, topics};
+    use crate::job::{JobResult, ActualUsage, ExecutionMetrics};
+    use crate::executor::task::{ExecutionTask, InferenceTask, TaskData, WebFetchTask};
+
+    tracing::info!(job_id = %job_id, "Starting local job execution");
+
+    // Mark job as in progress
+    if let Err(e) = job_manager.write().await.start_job(&job_id).await {
+        tracing::error!(job_id = %job_id, error = %e, "Failed to start job");
+        return;
+    }
+
+    // Broadcast status update
+    let status_msg = JobMessage::StatusUpdate(JobStatusMessage {
+        job_id: job_id.clone(),
+        status: JobStatusUpdate::Started,
+        peer_id: local_peer_id.to_string(),
+        timestamp: chrono::Utc::now().timestamp() as u64,
+    });
+    if let Ok(data) = serialize_message(&status_msg) {
+        let _ = network.write().await.publish(topics::JOB_STATUS, data);
+    }
+
+    // Execute based on resource type
+    let result = match resource_type {
+        crate::job::ResourceType::Inference { model, tokens } => {
+            // Try to parse prompt from payload
+            let prompt_cow = String::from_utf8_lossy(&payload);
+            let prompt: &str = if prompt_cow.is_empty() { "Hello, how are you?" } else { prompt_cow.as_ref() };
+
+            let task = InferenceTask::new(&model, prompt)
+                .with_max_tokens(tokens);
+
+            match executor.execute(ExecutionTask::Inference(task)).await {
+                Ok(task_result) => {
+                    match &task_result.data {
+                        TaskData::Inference(r) => {
+                            JobResult::new(r.text.as_bytes().to_vec())
+                                .with_usage(ActualUsage {
+                                    tokens: Some(r.tokens_generated),
+                                    compute_time_ms: Some(task_result.metrics.total_time_ms),
+                                    bytes: None,
+                                })
+                                .with_metrics(ExecutionMetrics {
+                                    ttfb_ms: task_result.metrics.ttfb_ms,
+                                    total_time_ms: task_result.metrics.total_time_ms,
+                                    tokens_per_sec: Some(r.tokens_per_second),
+                                })
+                        }
+                        _ => JobResult::new(b"Unexpected task result type".to_vec()),
+                    }
+                }
+                Err(e) => {
+                    JobResult::new(format!("Execution error: {}", e).into_bytes())
+                }
+            }
+        }
+        crate::job::ResourceType::WebFetch { url_count: _ } => {
+            // Parse URL from payload
+            let url = String::from_utf8_lossy(&payload);
+            let task = WebFetchTask::get(url.as_ref());
+
+            match executor.execute(ExecutionTask::WebFetch(task)).await {
+                Ok(task_result) => {
+                    match &task_result.data {
+                        TaskData::WebFetch(r) => {
+                            JobResult::new(r.body.clone())
+                                .with_usage(ActualUsage {
+                                    tokens: None,
+                                    compute_time_ms: Some(task_result.metrics.total_time_ms),
+                                    bytes: Some(r.body.len() as u64),
+                                })
+                        }
+                        _ => JobResult::new(b"Unexpected task result type".to_vec()),
+                    }
+                }
+                Err(e) => {
+                    JobResult::new(format!("Execution error: {}", e).into_bytes())
+                }
+            }
+        }
+        _ => {
+            JobResult::new(b"Unsupported resource type for local execution".to_vec())
+        }
+    };
+
+    tracing::info!(job_id = %job_id, "Job execution complete, submitting result");
+
+    // Submit result
+    if let Err(e) = job_manager.write().await.submit_result(&job_id, result.clone()).await {
+        tracing::error!(job_id = %job_id, error = %e, "Failed to submit job result");
+        return;
+    }
+
+    // Broadcast result to network
+    let result_msg = JobMessage::Result(JobResultMessage {
+        job_id: job_id.clone(),
+        result: result.clone(),
+        provider_peer_id: local_peer_id.to_string(),
+        signature: vec![],
+    });
+    if let Ok(data) = serialize_message(&result_msg) {
+        let _ = network.write().await.publish(topics::JOB_STATUS, data);
+    }
+
+    // Settle the job (mark as completed)
+    if let Err(e) = job_manager.write().await.settle_job(&job_id, true).await {
+        tracing::error!(job_id = %job_id, error = %e, "Failed to settle job");
+        return;
+    }
+
+    tracing::info!(job_id = %job_id, "Job completed and settled successfully");
 }
