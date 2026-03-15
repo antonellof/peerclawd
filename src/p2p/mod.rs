@@ -70,6 +70,12 @@ impl Network {
         self.connected_peers.iter().cloned().collect()
     }
 
+    /// Dial a remote peer by multiaddress.
+    pub fn dial(&mut self, addr: Multiaddr) -> anyhow::Result<()> {
+        self.swarm.dial(addr)?;
+        Ok(())
+    }
+
     /// Start the network and listen on configured addresses.
     pub async fn start(&mut self) -> anyhow::Result<()> {
         // Listen on configured addresses

@@ -3,8 +3,11 @@
 pub mod agent;
 pub mod chat;
 pub mod job;
+pub mod models;
 pub mod network;
+pub mod peers;
 pub mod serve;
+pub mod start;
 pub mod test;
 pub mod tool;
 pub mod wallet;
@@ -12,17 +15,37 @@ pub mod wallet;
 use clap::{Parser, Subcommand};
 
 /// PeerClaw'd - Decentralized P2P AI Agent Network
+///
+/// Run without arguments to start in interactive mode.
 #[derive(Parser)]
 #[command(name = "peerclawd")]
-#[command(author, version, about, long_about = None)]
+#[command(author, version)]
+#[command(about = "Decentralized P2P AI Agent Network", long_about = None)]
+#[command(after_help = "Run without arguments to start in interactive mode with menu.")]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Start a peer node
+    /// Start in interactive mode (default)
+    #[command(visible_alias = "i")]
+    Start,
+
+    /// Interactive AI chat
+    #[command(visible_alias = "c")]
+    Chat(chat::ChatArgs),
+
+    /// Manage AI models (list, download, remove)
+    #[command(visible_alias = "m")]
+    Models(models::ModelsArgs),
+
+    /// Manage P2P peer connections
+    #[command(visible_alias = "p")]
+    Peers(peers::PeersArgs),
+
+    /// Start a peer node (server mode)
     Serve(serve::ServeArgs),
 
     /// Agent management
@@ -31,7 +54,7 @@ pub enum Command {
         cmd: agent::AgentCommand,
     },
 
-    /// Network operations
+    /// Network operations (advanced)
     Network {
         #[command(subcommand)]
         cmd: network::NetworkCommand,
@@ -43,7 +66,7 @@ pub enum Command {
         cmd: wallet::WalletCommand,
     },
 
-    /// Tool management
+    /// Tool management (WASM)
     Tool {
         #[command(subcommand)]
         cmd: tool::ToolCommand,
@@ -52,12 +75,10 @@ pub enum Command {
     /// Distributed job submission
     Job(job::JobArgs),
 
-    /// Interactive AI chat
-    Chat(chat::ChatArgs),
-
     /// Test distributed execution
     Test(test::TestArgs),
 
     /// Print version information
+    #[command(visible_alias = "v")]
     Version,
 }

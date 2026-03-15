@@ -13,45 +13,61 @@ async fn main() -> anyhow::Result<()> {
     // Load environment variables from .peerclawd/.env if present
     bootstrap::load_env();
 
+    // Parse CLI arguments
+    let cli = Cli::parse();
+
+    // For interactive mode, use minimal logging
+    let log_level = match &cli.command {
+        None | Some(Command::Start) | Some(Command::Chat(_)) => "peerclawd=warn",
+        _ => "peerclawd=info",
+    };
+
     // Initialize tracing
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "peerclawd=info".into()),
+                .unwrap_or_else(|_| log_level.into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Parse CLI arguments
-    let cli = Cli::parse();
-
     // Dispatch to command handlers
     match cli.command {
-        Command::Serve(args) => {
-            peerclawd::cli::serve::run(args).await?;
+        // No command = interactive mode
+        None | Some(Command::Start) => {
+            peerclawd::cli::start::run_interactive().await?;
         }
-        Command::Agent { cmd } => {
-            peerclawd::cli::agent::run(cmd).await?;
-        }
-        Command::Network { cmd } => {
-            peerclawd::cli::network::run(cmd).await?;
-        }
-        Command::Wallet { cmd } => {
-            peerclawd::cli::wallet::run(cmd).await?;
-        }
-        Command::Tool { cmd } => {
-            peerclawd::cli::tool::run(cmd).await?;
-        }
-        Command::Job(args) => {
-            peerclawd::cli::job::run(args).await?;
-        }
-        Command::Chat(args) => {
+        Some(Command::Chat(args)) => {
             peerclawd::cli::chat::run(args).await?;
         }
-        Command::Test(args) => {
+        Some(Command::Models(args)) => {
+            peerclawd::cli::models::run(args).await?;
+        }
+        Some(Command::Peers(args)) => {
+            peerclawd::cli::peers::run(args).await?;
+        }
+        Some(Command::Serve(args)) => {
+            peerclawd::cli::serve::run(args).await?;
+        }
+        Some(Command::Agent { cmd }) => {
+            peerclawd::cli::agent::run(cmd).await?;
+        }
+        Some(Command::Network { cmd }) => {
+            peerclawd::cli::network::run(cmd).await?;
+        }
+        Some(Command::Wallet { cmd }) => {
+            peerclawd::cli::wallet::run(cmd).await?;
+        }
+        Some(Command::Tool { cmd }) => {
+            peerclawd::cli::tool::run(cmd).await?;
+        }
+        Some(Command::Job(args)) => {
+            peerclawd::cli::job::run(args).await?;
+        }
+        Some(Command::Test(args)) => {
             peerclawd::cli::test::run(args).await?;
         }
-        Command::Version => {
+        Some(Command::Version) => {
             println!("peerclawd {}", env!("CARGO_PKG_VERSION"));
         }
     }

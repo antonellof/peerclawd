@@ -265,7 +265,7 @@ impl Runtime {
                             );
                             // Store result if we're the requester
                             {
-                                let mut job_manager = self.job_manager.write().await;
+                                let job_manager = self.job_manager.write().await;
                                 if let Err(e) = job_manager
                                     .submit_result(&result_msg.job_id, result_msg.result).await {
                                     tracing::warn!(error = %e, "Failed to store job result");

@@ -69,6 +69,14 @@ impl Config {
         Ok(config)
     }
 
+    /// Save configuration to file.
+    pub fn save(&self) -> anyhow::Result<()> {
+        let config_path = bootstrap::base_dir().join("config.toml");
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(config_path, content)?;
+        Ok(())
+    }
+
     /// Apply environment variable overrides.
     fn apply_env_overrides(&mut self) {
         if let Ok(val) = std::env::var("PEERCLAWD_WEB_ENABLED") {

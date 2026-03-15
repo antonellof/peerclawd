@@ -48,6 +48,11 @@ pub fn database_path() -> PathBuf {
     data_dir().join("peerclawd.redb")
 }
 
+/// Get the path to the config file.
+pub fn config_path() -> PathBuf {
+    base_dir().join("config.toml")
+}
+
 /// Load environment variables from `.peerclawd/.env` if present.
 pub fn load_env() {
     let env_path = base_dir().join(".env");
