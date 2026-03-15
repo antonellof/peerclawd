@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PeerClaw'd Chat</title>
+    <title>PeerClaw Chat</title>
     <style>
         :root {
             --bg-primary: #0d1117;
@@ -553,7 +553,7 @@
                     <circle cx="3" cy="12" r="1.5" fill="currentColor"/>
                     <circle cx="21" cy="12" r="1.5" fill="currentColor"/>
                 </svg>
-                PeerClaw<span>'d</span>
+                PeerClaw
             </div>
             <div class="status-pill">
                 <div class="status-dot"></div>
@@ -596,7 +596,7 @@
                         <circle cx="21" cy="12" r="1.5" fill="var(--accent)"/>
                     </svg>
                 </div>
-                <h1 class="welcome-title">Welcome to PeerClaw'd</h1>
+                <h1 class="welcome-title">Welcome to PeerClaw</h1>
                 <p class="welcome-subtitle">
                     Decentralized AI at your fingertips. Run models locally, connect to peers,
                     and use powerful tools with slash commands.
@@ -673,7 +673,7 @@
     </div>
 
     <footer class="footer">
-        Powered by <a href="#">PeerClaw'd</a> - Decentralized P2P AI
+        Powered by <a href="#">PeerClaw</a> - Decentralized P2P AI
     </footer>
 
     <script>
@@ -1165,7 +1165,7 @@ Edit the file to customize, then run /skill scan`;
             // Model check
             checks.push(status.active_inference > 0 || status.completed_jobs > 0
                 ? '✓ Models: Available'
-                : '✗ Models: No models found - run "peerclawd models download llama-3.2-1b"');
+                : '✗ Models: No models found - run "peerclaw models download llama-3.2-1b"');
 
             // Network check
             checks.push(status.connected_peers > 0

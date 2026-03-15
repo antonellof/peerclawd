@@ -1,4 +1,4 @@
-//! `peerclawd models` command - Manage AI models.
+//! `peerclaw models` command - Manage AI models.
 
 use clap::{Args, Subcommand};
 use std::io::{self, Write};
@@ -104,8 +104,8 @@ async fn list_models() -> anyhow::Result<()> {
     }
 
     println!();
-    println!("  To download: \x1b[36mpeerclawd models download <name>\x1b[0m");
-    println!("  Example:     \x1b[36mpeerclawd models download llama-3.2-1b\x1b[0m");
+    println!("  To download: \x1b[36mpeerclaw models download <name>\x1b[0m");
+    println!("  Example:     \x1b[36mpeerclaw models download llama-3.2-1b\x1b[0m");
     println!();
 
     Ok(())
@@ -192,7 +192,7 @@ async fn download_model(model: &str, quant: &str) -> anyhow::Result<()> {
     println!("\x1b[32m✓ Download complete!\x1b[0m");
     println!("  Model saved to: \x1b[36m{}\x1b[0m", output_path.display());
     println!();
-    println!("  To use in chat: \x1b[36mpeerclawd chat --model {}-{}\x1b[0m", model, quant);
+    println!("  To use in chat: \x1b[36mpeerclaw chat --model {}-{}\x1b[0m", model, quant);
     println!();
 
     Ok(())
@@ -234,7 +234,7 @@ async fn remove_model(model: &str) -> anyhow::Result<()> {
         }
         None => {
             println!("\x1b[33mModel '{}' not found.\x1b[0m", model);
-            println!("Run \x1b[36mpeerclawd models list\x1b[0m to see downloaded models.");
+            println!("Run \x1b[36mpeerclaw models list\x1b[0m to see downloaded models.");
         }
     }
 

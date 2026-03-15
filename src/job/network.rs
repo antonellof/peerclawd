@@ -8,11 +8,11 @@ use super::{JobBid, JobId, JobRequest, JobResult};
 /// Topics for job-related GossipSub messages.
 pub mod topics {
     /// Topic for broadcasting job requests
-    pub const JOB_REQUESTS: &str = "peerclawd/jobs/requests/v1";
+    pub const JOB_REQUESTS: &str = "peerclaw/jobs/requests/v1";
     /// Topic for broadcasting job bids
-    pub const JOB_BIDS: &str = "peerclawd/jobs/bids/v1";
+    pub const JOB_BIDS: &str = "peerclaw/jobs/bids/v1";
     /// Topic for job status updates
-    pub const JOB_STATUS: &str = "peerclawd/jobs/status/v1";
+    pub const JOB_STATUS: &str = "peerclaw/jobs/status/v1";
 }
 
 /// Message types sent over the P2P network for job coordination.

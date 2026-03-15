@@ -9,7 +9,7 @@ use crate::db::Database;
 use crate::identity::NodeIdentity;
 use crate::p2p::Network;
 
-/// The main PeerClaw'd node.
+/// The main PeerClaw node.
 pub struct Node {
     config: Config,
     identity: NodeIdentity,
@@ -76,7 +76,7 @@ impl Node {
 
     /// Run the node.
     pub async fn run(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Starting PeerClaw'd node");
+        tracing::info!("Starting PeerClaw node");
 
         // Start network
         self.network.start().await?;

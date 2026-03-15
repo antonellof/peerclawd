@@ -1,4 +1,4 @@
-//! `peerclawd skill` commands - Skill management.
+//! `peerclaw skill` commands - Skill management.
 
 use clap::Subcommand;
 use std::sync::Arc;
@@ -160,7 +160,7 @@ pub async fn run(cmd: SkillCommand) -> anyhow::Result<()> {
                 }
             } else {
                 println!("Skill '{}' not found", name);
-                println!("Use 'peerclawd skill list' to see available skills.");
+                println!("Use 'peerclaw skill list' to see available skills.");
             }
         }
 
@@ -249,7 +249,7 @@ When helping users:
             println!("Created skill template: {}", skill_path.display());
             println!();
             println!("Edit the file to customize your skill, then run:");
-            println!("  peerclawd skill scan");
+            println!("  peerclaw skill scan");
         }
     }
 

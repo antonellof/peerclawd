@@ -1,4 +1,4 @@
-//! `peerclawd agent` commands - Agent management.
+//! `peerclaw agent` commands - Agent management.
 
 use clap::Subcommand;
 use std::path::PathBuf;

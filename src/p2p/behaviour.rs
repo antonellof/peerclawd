@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use crate::config::P2pConfig;
 
-/// Combined network behaviour for PeerClaw'd.
+/// Combined network behaviour for PeerClaw.
 #[derive(NetworkBehaviour)]
 pub struct PeerclawdBehaviour {
     /// Kademlia DHT for peer discovery and content routing
@@ -43,7 +43,7 @@ pub fn build_swarm(keypair: Keypair, config: &P2pConfig) -> anyhow::Result<Swarm
             // Kademlia DHT
             let kademlia = {
                 let store = kad::store::MemoryStore::new(local_peer_id);
-                let config = kad::Config::new(libp2p::StreamProtocol::new("/peerclawd/kad/1.0.0"));
+                let config = kad::Config::new(libp2p::StreamProtocol::new("/peerclaw/kad/1.0.0"));
                 kad::Behaviour::with_config(local_peer_id, store, config)
             };
 
@@ -77,10 +77,10 @@ pub fn build_swarm(keypair: Keypair, config: &P2pConfig) -> anyhow::Result<Swarm
             // Identify
             let identify = identify::Behaviour::new(
                 identify::Config::new(
-                    "/peerclawd/1.0.0".to_string(),
+                    "/peerclaw/1.0.0".to_string(),
                     keypair.public(),
                 )
-                .with_agent_version(format!("peerclawd/{}", env!("CARGO_PKG_VERSION"))),
+                .with_agent_version(format!("peerclaw/{}", env!("CARGO_PKG_VERSION"))),
             );
 
             Ok(PeerclawdBehaviour {

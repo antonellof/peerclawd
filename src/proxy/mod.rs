@@ -243,7 +243,7 @@ impl Proxy {
     /// Index page with proxy info.
     async fn index(State(state): State<Arc<ProxyState>>) -> impl IntoResponse {
         let info = serde_json::json!({
-            "service": "PeerClaw'd HTTP 402 Proxy",
+            "service": "PeerClaw HTTP 402 Proxy",
             "version": env!("CARGO_PKG_VERSION"),
             "base_price": format!("{:.6} PCLAW", from_micro(state.config.base_price_per_request)),
             "payment_channels": state.config.enable_channels,

@@ -479,7 +479,7 @@ pub async fn list_models(State(_state): State<Arc<WebState>>) -> Json<ModelsResp
                         id: model_id,
                         object: "model",
                         created,
-                        owned_by: "peerclawd".to_string(),
+                        owned_by: "peerclaw".to_string(),
                     }
                 })
                 .collect()

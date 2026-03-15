@@ -1,16 +1,16 @@
-//! PeerClaw'd - Decentralized P2P AI Agent Network
+//! PeerClaw - Decentralized P2P AI Agent Network
 //!
 //! One binary. Distributed intelligence. Token-powered autonomy.
 
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use peerclawd::cli::{Cli, Command};
-use peerclawd::bootstrap;
+use peerclaw::cli::{Cli, Command};
+use peerclaw::bootstrap;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Load environment variables from .peerclawd/.env if present
+    // Load environment variables from .peerclaw/.env if present
     bootstrap::load_env();
 
     // Parse CLI arguments
@@ -18,13 +18,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Silence llama.cpp/ggml logs unless --debug is passed
     if !cli.debug {
-        peerclawd::inference::silence_llama_logs();
+        peerclaw::inference::silence_llama_logs();
     }
 
     // For interactive mode, use minimal logging
     let log_level = match &cli.command {
-        None | Some(Command::Start) | Some(Command::Chat(_)) | Some(Command::Run(_)) => "peerclawd=warn",
-        _ => "peerclawd=info",
+        None | Some(Command::Start) | Some(Command::Chat(_)) | Some(Command::Run(_)) => "peerclaw=warn",
+        _ => "peerclaw=info",
     };
 
     // Initialize tracing
@@ -40,56 +40,56 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         // No command = interactive mode
         None | Some(Command::Start) => {
-            peerclawd::cli::start::run_interactive().await?;
+            peerclaw::cli::start::run_interactive().await?;
         }
         Some(Command::Chat(args)) => {
-            peerclawd::cli::chat::run(args).await?;
+            peerclaw::cli::chat::run(args).await?;
         }
         // Ollama/vLLM-style commands
         Some(Command::Run(args)) => {
-            peerclawd::cli::run::run(args).await?;
+            peerclaw::cli::run::run(args).await?;
         }
         Some(Command::Pull(args)) => {
-            peerclawd::cli::run::pull(args).await?;
+            peerclaw::cli::run::pull(args).await?;
         }
         Some(Command::List) => {
-            peerclawd::cli::run::list().await?;
+            peerclaw::cli::run::list().await?;
         }
         Some(Command::Ps) => {
-            peerclawd::cli::run::ps().await?;
+            peerclaw::cli::run::ps().await?;
         }
         Some(Command::Models(args)) => {
-            peerclawd::cli::models::run(args).await?;
+            peerclaw::cli::models::run(args).await?;
         }
         Some(Command::Peers(args)) => {
-            peerclawd::cli::peers::run(args).await?;
+            peerclaw::cli::peers::run(args).await?;
         }
         Some(Command::Serve(args)) => {
-            peerclawd::cli::serve::run(args).await?;
+            peerclaw::cli::serve::run(args).await?;
         }
         Some(Command::Agent { cmd }) => {
-            peerclawd::cli::agent::run(cmd).await?;
+            peerclaw::cli::agent::run(cmd).await?;
         }
         Some(Command::Network { cmd }) => {
-            peerclawd::cli::network::run(cmd).await?;
+            peerclaw::cli::network::run(cmd).await?;
         }
         Some(Command::Wallet { cmd }) => {
-            peerclawd::cli::wallet::run(cmd).await?;
+            peerclaw::cli::wallet::run(cmd).await?;
         }
         Some(Command::Tool { cmd }) => {
-            peerclawd::cli::tool::run(cmd).await?;
+            peerclaw::cli::tool::run(cmd).await?;
         }
         Some(Command::Skill { cmd }) => {
-            peerclawd::cli::skill::run(cmd).await?;
+            peerclaw::cli::skill::run(cmd).await?;
         }
         Some(Command::Job(args)) => {
-            peerclawd::cli::job::run(args).await?;
+            peerclaw::cli::job::run(args).await?;
         }
         Some(Command::Test(args)) => {
-            peerclawd::cli::test::run(args).await?;
+            peerclaw::cli::test::run(args).await?;
         }
         Some(Command::Version) => {
-            println!("peerclawd {}", env!("CARGO_PKG_VERSION"));
+            println!("peerclaw {}", env!("CARGO_PKG_VERSION"));
         }
     }
 

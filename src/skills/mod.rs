@@ -64,7 +64,7 @@ impl std::fmt::Display for SkillTrust {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillSource {
-    /// Local skills directory (~/.peerclawd/skills/).
+    /// Local skills directory (~/.peerclaw/skills/).
     Local(PathBuf),
     /// Workspace skills directory.
     Workspace(PathBuf),

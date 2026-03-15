@@ -1,4 +1,4 @@
-//! `peerclawd peers` command - Manage P2P connections.
+//! `peerclaw peers` command - Manage P2P connections.
 
 use std::sync::Arc;
 
@@ -73,10 +73,10 @@ async fn list_peers() -> anyhow::Result<()> {
         println!("  \x1b[33mNo peers connected.\x1b[0m");
         println!();
         println!("  To connect to a peer:");
-        println!("  \x1b[36m  peerclawd peers join /ip4/<ip>/tcp/<port>/p2p/<peer_id>\x1b[0m");
+        println!("  \x1b[36m  peerclaw peers join /ip4/<ip>/tcp/<port>/p2p/<peer_id>\x1b[0m");
         println!();
         println!("  To discover local peers:");
-        println!("  \x1b[36m  peerclawd peers discover\x1b[0m");
+        println!("  \x1b[36m  peerclaw peers discover\x1b[0m");
     } else {
         println!("  \x1b[32m{} peer(s) connected:\x1b[0m", peers.len());
         println!();
@@ -205,7 +205,7 @@ async fn discover_peers() -> anyhow::Result<()> {
         println!("  \x1b[33mNo peers found on local network.\x1b[0m");
         println!();
         println!("  To connect to a remote peer:");
-        println!("  \x1b[36m  peerclawd peers join /ip4/<ip>/tcp/<port>/p2p/<peer_id>\x1b[0m");
+        println!("  \x1b[36m  peerclaw peers join /ip4/<ip>/tcp/<port>/p2p/<peer_id>\x1b[0m");
     }
 
     println!();
@@ -218,7 +218,7 @@ fn load_identity() -> anyhow::Result<NodeIdentity> {
     if path.exists() {
         Ok(NodeIdentity::load(&path)?)
     } else {
-        anyhow::bail!("No identity found. Run 'peerclawd' first to initialize.")
+        anyhow::bail!("No identity found. Run 'peerclaw' first to initialize.")
     }
 }
 

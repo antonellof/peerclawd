@@ -1,4 +1,4 @@
-//! `peerclawd wallet` commands - Wallet operations.
+//! `peerclaw wallet` commands - Wallet operations.
 
 use clap::Subcommand;
 use std::path::PathBuf;
@@ -66,7 +66,7 @@ fn load_wallet() -> anyhow::Result<(Wallet, NodeIdentity)> {
     let identity_path = bootstrap::base_dir().join("identity.key");
 
     if !identity_path.exists() {
-        anyhow::bail!("No wallet found. Run 'peerclawd wallet create' first.");
+        anyhow::bail!("No wallet found. Run 'peerclaw wallet create' first.");
     }
 
     let identity = NodeIdentity::load(&identity_path)?;
@@ -170,7 +170,7 @@ pub async fn run(cmd: WalletCommand) -> anyhow::Result<()> {
             let identity_path = bootstrap::base_dir().join("identity.key");
 
             if !identity_path.exists() {
-                println!("No wallet found. Run 'peerclawd wallet create' to create one.");
+                println!("No wallet found. Run 'peerclaw wallet create' to create one.");
                 return Ok(());
             }
 

@@ -1,4 +1,4 @@
-//! `peerclawd serve` command - Start a peer node with full distributed execution.
+//! `peerclaw serve` command - Start a peer node with full distributed execution.
 
 use clap::Args;
 use futures::FutureExt;
@@ -56,7 +56,7 @@ pub struct ServeArgs {
 }
 
 pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
-    tracing::info!("Starting PeerClaw'd node...");
+    tracing::info!("Starting PeerClaw node...");
 
     // Ensure directories exist
     bootstrap::ensure_dirs()?;

@@ -396,7 +396,7 @@ async fn api_chat(
     // Fallback: direct users to CLI
     Json(ChatResponse {
         response: format!(
-            "Chat is available via CLI: peerclawd chat --model {}\n\n\
+            "Chat is available via CLI: peerclaw chat --model {}\n\n\
             To enable web chat, restart the node with inference support.",
             model
         ),

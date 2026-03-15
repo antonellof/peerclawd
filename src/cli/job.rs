@@ -1,4 +1,4 @@
-//! `peerclawd job` command - Submit and manage distributed jobs.
+//! `peerclaw job` command - Submit and manage distributed jobs.
 
 use clap::{Args, Subcommand};
 use std::sync::Arc;

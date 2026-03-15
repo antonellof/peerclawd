@@ -1,6 +1,6 @@
-//! `peerclawd` default startup - Interactive mode with web server.
+//! `peerclaw` default startup - Interactive mode with web server.
 //!
-//! When run without arguments, PeerClaw'd starts in interactive mode:
+//! When run without arguments, PeerClaw starts in interactive mode:
 //! - Starts the web dashboard
 //! - Initializes P2P networking
 //! - Drops into chat mode for immediate AI interaction
@@ -25,10 +25,10 @@ pub fn is_first_run() -> bool {
 pub async fn run_first_time_setup() -> anyhow::Result<()> {
     println!();
     println!("\x1b[1;36m╔══════════════════════════════════════════════════════════╗\x1b[0m");
-    println!("\x1b[1;36m║     Welcome to PeerClaw'd - Decentralized AI Network     ║\x1b[0m");
+    println!("\x1b[1;36m║     Welcome to PeerClaw - Decentralized AI Network     ║\x1b[0m");
     println!("\x1b[1;36m╚══════════════════════════════════════════════════════════╝\x1b[0m");
     println!();
-    println!("This appears to be your first time running PeerClaw'd.");
+    println!("This appears to be your first time running PeerClaw.");
     println!("Let's set up a few things to get you started.\n");
 
     // Ensure directories exist
@@ -50,7 +50,7 @@ pub async fn run_first_time_setup() -> anyhow::Result<()> {
         println!("   \x1b[33m!\x1b[0m No models found in {}", models_dir.display());
         println!();
         println!("   To download a model, run:");
-        println!("   \x1b[36m  peerclawd models download llama-3.2-1b\x1b[0m");
+        println!("   \x1b[36m  peerclaw models download llama-3.2-1b\x1b[0m");
         println!();
         println!("   Or manually download a GGUF model to:");
         println!("   \x1b[90m  {}\x1b[0m\n", models_dir.display());
@@ -76,11 +76,11 @@ pub async fn run_first_time_setup() -> anyhow::Result<()> {
     // Summary
     println!("\x1b[1;32m═══ Setup Complete! ═══\x1b[0m\n");
     println!("You can now:");
-    println!("  • \x1b[36mpeerclawd\x1b[0m          - Start in interactive mode");
-    println!("  • \x1b[36mpeerclawd chat\x1b[0m     - Start AI chat");
-    println!("  • \x1b[36mpeerclawd serve\x1b[0m    - Start as a network node");
-    println!("  • \x1b[36mpeerclawd models\x1b[0m   - Manage AI models");
-    println!("  • \x1b[36mpeerclawd peers\x1b[0m    - Connect to the network");
+    println!("  • \x1b[36mpeerclaw\x1b[0m          - Start in interactive mode");
+    println!("  • \x1b[36mpeerclaw chat\x1b[0m     - Start AI chat");
+    println!("  • \x1b[36mpeerclaw serve\x1b[0m    - Start as a network node");
+    println!("  • \x1b[36mpeerclaw models\x1b[0m   - Manage AI models");
+    println!("  • \x1b[36mpeerclaw peers\x1b[0m    - Connect to the network");
     println!();
 
     Ok(())
@@ -147,7 +147,7 @@ pub async fn run_interactive() -> anyhow::Result<()> {
     let models_dir = bootstrap::base_dir().join("models");
     let models = list_local_models(&models_dir);
     if models.is_empty() {
-        println!("\x1b[33m⚠ No AI models found. Run 'peerclawd models download' to get started.\x1b[0m");
+        println!("\x1b[33m⚠ No AI models found. Run 'peerclaw models download' to get started.\x1b[0m");
         println!();
     }
 
@@ -267,7 +267,7 @@ fn show_models(models_dir: &PathBuf) {
         println!("  \x1b[33mNo models found.\x1b[0m");
         println!();
         println!("  To download a model, run:");
-        println!("  \x1b[36m  peerclawd models download llama-3.2-1b\x1b[0m");
+        println!("  \x1b[36m  peerclaw models download llama-3.2-1b\x1b[0m");
     } else {
         for model in &models {
             // Get file size
@@ -292,7 +292,7 @@ async fn show_peers(runtime: &Runtime) {
         println!("  \x1b[33mNo peers connected.\x1b[0m");
         println!();
         println!("  To connect to a peer, run:");
-        println!("  \x1b[36m  peerclawd peers join <multiaddr>\x1b[0m");
+        println!("  \x1b[36m  peerclaw peers join <multiaddr>\x1b[0m");
     } else {
         for peer in peers {
             let short_id = if peer.to_string().len() > 16 {

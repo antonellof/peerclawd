@@ -1,4 +1,4 @@
-//! `peerclawd tool` commands - Tool management.
+//! `peerclaw tool` commands - Tool management.
 
 use clap::Subcommand;
 
@@ -143,7 +143,7 @@ pub async fn run(cmd: ToolCommand) -> anyhow::Result<()> {
                 }
             } else {
                 println!("Tool '{}' not found", name);
-                println!("Use 'peerclawd tool list' to see available tools.");
+                println!("Use 'peerclaw tool list' to see available tools.");
             }
         }
 

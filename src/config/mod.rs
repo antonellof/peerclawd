@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::bootstrap;
 
-/// Root configuration for PeerClaw'd.
+/// Root configuration for PeerClaw.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// P2P networking configuration

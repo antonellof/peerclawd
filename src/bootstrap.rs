@@ -2,20 +2,20 @@
 
 use std::path::PathBuf;
 
-/// Get the base directory for PeerClaw'd data.
+/// Get the base directory for PeerClaw data.
 ///
 /// Priority:
 /// 1. `PEERCLAWD_HOME` environment variable
-/// 2. `~/.peerclawd` on Unix systems
-/// 3. `%APPDATA%\peerclawd` on Windows
+/// 2. `~/.peerclaw` on Unix systems
+/// 3. `%APPDATA%\peerclaw` on Windows
 pub fn base_dir() -> PathBuf {
     if let Ok(home) = std::env::var("PEERCLAWD_HOME") {
         return PathBuf::from(home);
     }
 
     dirs::home_dir()
-        .map(|h| h.join(".peerclawd"))
-        .unwrap_or_else(|| PathBuf::from(".peerclawd"))
+        .map(|h| h.join(".peerclaw"))
+        .unwrap_or_else(|| PathBuf::from(".peerclaw"))
 }
 
 /// Get the directory for WASM tools.
@@ -45,7 +45,7 @@ pub fn identity_path() -> PathBuf {
 
 /// Get the path to the database file.
 pub fn database_path() -> PathBuf {
-    data_dir().join("peerclawd.redb")
+    data_dir().join("peerclaw.redb")
 }
 
 /// Get the path to the config file.
@@ -53,7 +53,7 @@ pub fn config_path() -> PathBuf {
     base_dir().join("config.toml")
 }
 
-/// Load environment variables from `.peerclawd/.env` if present.
+/// Load environment variables from `.peerclaw/.env` if present.
 pub fn load_env() {
     let env_path = base_dir().join(".env");
     if env_path.exists() {
@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn test_base_dir_exists() {
         let dir = base_dir();
-        assert!(dir.ends_with(".peerclawd"));
+        assert!(dir.ends_with(".peerclaw"));
     }
 
     #[test]

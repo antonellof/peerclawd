@@ -16,11 +16,11 @@ pub mod wallet;
 
 use clap::{Parser, Subcommand};
 
-/// PeerClaw'd - Decentralized P2P AI Agent Network
+/// PeerClaw - Decentralized P2P AI Agent Network
 ///
 /// Run without arguments to start in interactive mode.
 #[derive(Parser)]
-#[command(name = "peerclawd")]
+#[command(name = "peerclaw")]
 #[command(author, version)]
 #[command(about = "Decentralized P2P AI Agent Network", long_about = None)]
 #[command(after_help = "Run without arguments to start in interactive mode with menu.")]

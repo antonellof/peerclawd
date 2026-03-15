@@ -1,4 +1,4 @@
-//! PeerClaw'd - Decentralized P2P AI Agent Network
+//! PeerClaw - Decentralized P2P AI Agent Network
 //!
 //! A fully decentralized, peer-to-peer network where autonomous AI agents
 //! collaborate, share resources, and transact using a native token economy.

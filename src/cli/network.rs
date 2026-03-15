@@ -1,4 +1,4 @@
-//! `peerclawd network` commands - Network operations.
+//! `peerclaw network` commands - Network operations.
 
 use clap::Subcommand;
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PeerClaw'd is a fully decentralized peer-to-peer AI agent network written in Rust. It ships as a single static binary where autonomous AI agents collaborate, share resources, and transact using a native token economy.
+PeerClaw is a fully decentralized peer-to-peer AI agent network written in Rust. It ships as a single static binary where autonomous AI agents collaborate, share resources, and transact using a native token economy.
 
 **Current Status:** Pre-implementation (design specification only). The repository contains a comprehensive README.md with architectural specifications but no source code yet.
 
@@ -40,11 +40,11 @@ cargo test module_name::
 One statically-linked binary operates in multiple modes based on flags/subcommands. Every peer runs the same binary - roles (resource provider, agent host, gateway) are determined at runtime.
 
 **CLI Structure:**
-- `peerclawd serve` - Start peer node (with `--gpu`, `--storage`, `--web` flags)
-- `peerclawd agent run|list|logs|stop` - Agent management
-- `peerclawd network status|peers|discover` - Network operations
-- `peerclawd wallet create|balance|send|history` - Token wallet
-- `peerclawd tool build|install|list` - WASM tool management
+- `peerclaw serve` - Start peer node (with `--gpu`, `--storage`, `--web` flags)
+- `peerclaw agent run|list|logs|stop` - Agent management
+- `peerclaw network status|peers|discover` - Network operations
+- `peerclaw wallet create|balance|send|history` - Token wallet
+- `peerclaw tool build|install|list` - WASM tool management
 
 ### Core Subsystems
 

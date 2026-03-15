@@ -1,8 +1,8 @@
-//! `peerclawd run` and `peerclawd pull` commands - Ollama/vLLM-style interface.
+//! `peerclaw run` and `peerclaw pull` commands - Ollama/vLLM-style interface.
 //!
 //! Provides familiar commands for users coming from Ollama or vLLM:
-//! - `peerclawd run <model>` - Run a model interactively
-//! - `peerclawd pull <model>` - Download a model
+//! - `peerclaw run <model>` - Run a model interactively
+//! - `peerclaw pull <model>` - Download a model
 
 use clap::Args;
 use std::io::{self, BufRead, Write};
@@ -83,8 +83,8 @@ pub async fn run(args: RunArgs) -> anyhow::Result<()> {
 
     if !model_exists && !args.distributed {
         println!("\x1b[33mModel '{}' not found locally.\x1b[0m", model_name);
-        println!("Run: \x1b[36mpeerclawd pull {}\x1b[0m", args.model);
-        println!("Or use: \x1b[36mpeerclawd run {} --distributed\x1b[0m to use network peers", args.model);
+        println!("Run: \x1b[36mpeerclaw pull {}\x1b[0m", args.model);
+        println!("Or use: \x1b[36mpeerclaw run {} --distributed\x1b[0m to use network peers", args.model);
         return Ok(());
     }
 

@@ -26,7 +26,7 @@ impl HttpTool {
     pub fn new() -> Self {
         let client = Client::builder()
             .timeout(DEFAULT_TIMEOUT)
-            .user_agent("PeerClaw'd/0.2")
+            .user_agent("PeerClaw/0.2")
             .build()
             .unwrap_or_else(|_| Client::new());
 
@@ -220,7 +220,7 @@ impl WebFetchTool {
     pub fn new() -> Self {
         let client = Client::builder()
             .timeout(DEFAULT_TIMEOUT)
-            .user_agent("Mozilla/5.0 (compatible; PeerClaw'd/0.2)")
+            .user_agent("Mozilla/5.0 (compatible; PeerClaw/0.2)")
             .build()
             .unwrap_or_else(|_| Client::new());
 

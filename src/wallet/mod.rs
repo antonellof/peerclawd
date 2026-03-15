@@ -1,4 +1,4 @@
-//! Token wallet implementation for PeerClaw'd.
+//! Token wallet implementation for PeerClaw.
 //!
 //! Provides local token accounting, transaction management, and balance tracking.
 //! The PCLAW token has 6 decimal places (1 PCLAW = 1_000_000 μPCLAW).

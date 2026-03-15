@@ -1,4 +1,4 @@
-//! `peerclawd chat` command - Interactive AI chat with Claude-Code-style commands.
+//! `peerclaw chat` command - Interactive AI chat with Claude-Code-style commands.
 
 use clap::Args;
 use serde::{Deserialize, Serialize};
@@ -191,7 +191,7 @@ fn parse_slash_command(input: &str) -> Option<SlashCommand> {
 }
 
 fn show_help() {
-    println!("\n\x1b[1m=== PeerClaw'd Chat Commands ===\x1b[0m");
+    println!("\n\x1b[1m=== PeerClaw Chat Commands ===\x1b[0m");
     println!();
     println!("  \x1b[1mGeneral\x1b[0m");
     println!("  \x1b[36m/help, /h, /?\x1b[0m         Show this help");
@@ -332,7 +332,7 @@ fn show_history(history: &[(String, String)]) {
 
 fn export_conversation(path: &PathBuf, history: &[(String, String)], settings: &ChatSettings) -> anyhow::Result<()> {
     let mut content = String::new();
-    content.push_str("# PeerClaw'd Chat Export\n\n");
+    content.push_str("# PeerClaw Chat Export\n\n");
     content.push_str(&format!("Model: {}\n", settings.model));
     content.push_str(&format!("Temperature: {}\n", settings.temperature));
     content.push_str(&format!("System: {}\n\n", settings.system_prompt));
@@ -434,7 +434,7 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
         settings.stream = false;
     }
 
-    println!("\x1b[1m=== PeerClaw'd AI Chat ===\x1b[0m");
+    println!("\x1b[1m=== PeerClaw AI Chat ===\x1b[0m");
     println!("Model: \x1b[36m{}\x1b[0m", settings.model);
     println!("Max tokens: {}", settings.max_tokens);
     println!("Temperature: {:.2}", settings.temperature);
@@ -727,7 +727,7 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                         println!("  \x1b[32m✓\x1b[0m Models: {} GGUF files found", model_count);
                     } else {
                         println!("  \x1b[31m✗\x1b[0m Models: No models found");
-                        println!("    Run: peerclawd models download llama-3.2-1b");
+                        println!("    Run: peerclaw models download llama-3.2-1b");
                     }
 
                     // Check identity

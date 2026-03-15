@@ -130,7 +130,7 @@ mod tests {
 name: code-review
 version: 1.0.0
 description: Code review assistant skill
-author: PeerClaw'd
+author: PeerClaw
 activation:
   keywords:
     - review
