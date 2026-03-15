@@ -17,7 +17,10 @@ use crate::executor::{
 use crate::executor::remote::{JobProvider, RemoteExecutor, RemoteExecutorConfig};
 use crate::executor::task::{ExecutionTask, InferenceTask, TaskResult, WebFetchTask, TaskData};
 use crate::identity::NodeIdentity;
-use crate::inference::{InferenceConfig, InferenceEngine, ModelDistributor};
+use crate::inference::{
+    InferenceConfig, InferenceEngine, ModelDistributor,
+    BatchAggregator, BatchConfig, BatchProcessor, BatchResponse, BatchError, BatchStats,
+};
 use crate::job::{JobManager, PricingStrategy, network as job_network};
 use crate::p2p::{Network, NetworkEvent};
 use crate::wallet::{Wallet, WalletConfig};
@@ -42,6 +45,8 @@ pub struct Runtime {
     pub model_distributor: Arc<ModelDistributor>,
     /// Job provider for handling incoming requests
     pub job_provider: Arc<JobProvider>,
+    /// Batch aggregator for multi-agent inference
+    pub batch_aggregator: Arc<BatchAggregator>,
     /// Local peer ID
     pub local_peer_id: PeerId,
     /// Configuration
@@ -123,6 +128,17 @@ impl Runtime {
             local_peer_id.clone(),
         ));
 
+        // Create batch aggregator for multi-agent inference
+        let batch_config = BatchConfig {
+            batch_window_ms: config.executor.batch_window_ms.unwrap_or(50),
+            max_batch_size: config.executor.max_batch_size.unwrap_or(8),
+            min_batch_size: config.executor.min_batch_size.unwrap_or(4),
+            adaptive: true,
+            max_queue_depth: 100,
+        };
+        let (batch_aggregator, _batch_processor) = BatchAggregator::new(batch_config);
+        let batch_aggregator = Arc::new(batch_aggregator);
+
         Ok(Self {
             identity,
             database,
@@ -133,6 +149,7 @@ impl Runtime {
             inference,
             model_distributor,
             job_provider,
+            batch_aggregator,
             local_peer_id,
             config,
         })
@@ -162,6 +179,30 @@ impl Runtime {
     pub async fn inference(&self, prompt: &str, model: &str, max_tokens: u32) -> Result<TaskResult, crate::executor::ExecutorError> {
         let task = InferenceTask::new(model, prompt).with_max_tokens(max_tokens);
         self.executor.execute(ExecutionTask::Inference(task)).await
+    }
+
+    /// Submit inference via batch aggregator (for multi-agent scenarios).
+    /// Multiple requests are collected and processed together for efficiency.
+    pub async fn inference_batched(
+        &self,
+        source: &str,
+        model: &str,
+        prompt: &str,
+        max_tokens: u32,
+        temperature: f32,
+    ) -> Result<BatchResponse, BatchError> {
+        self.batch_aggregator.submit(
+            source.to_string(),
+            model.to_string(),
+            prompt.to_string(),
+            max_tokens,
+            temperature,
+        ).await
+    }
+
+    /// Get batch aggregator statistics.
+    pub async fn batch_stats(&self) -> BatchStats {
+        self.batch_aggregator.stats().await
     }
 
     /// Execute inference with streaming - tokens are printed directly to stdout as generated.

@@ -8,9 +8,8 @@ mod state;
 pub use state::{ChannelState, ChannelUpdate, SignedUpdate};
 
 use crate::identity::NodeIdentity;
-use crate::wallet::{to_micro, from_micro, Wallet, WalletError};
+use crate::wallet::{from_micro, Wallet, WalletError};
 use chrono::{DateTime, Utc};
-use ed25519_dalek::Signature;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

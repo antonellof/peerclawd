@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::wallet::{to_micro, from_micro};
+use crate::wallet::to_micro;
 
 /// Types of resources that can be requested/offered.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

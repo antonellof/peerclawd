@@ -15,9 +15,8 @@ pub use bid::{JobBid, BidId, BidStatus, select_best_bid};
 pub use execution::{Job, JobStatus, JobResult, ActualUsage, ExecutionMetrics};
 pub use network::{JobMessage, topics as job_topics};
 
-use crate::wallet::{Wallet, EscrowId, WalletError};
-use crate::identity::NodeIdentity;
-use chrono::{DateTime, Utc};
+use crate::wallet::{Wallet, WalletError};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

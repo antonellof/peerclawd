@@ -262,6 +262,12 @@ pub struct ExecutorConfig {
     pub max_web_response_size: usize,
     /// Default web timeout in seconds
     pub default_web_timeout_secs: u32,
+    /// Batch aggregation: time window in ms to collect requests
+    pub batch_window_ms: Option<u64>,
+    /// Batch aggregation: maximum requests per batch
+    pub max_batch_size: Option<usize>,
+    /// Batch aggregation: minimum requests to trigger early processing
+    pub min_batch_size: Option<usize>,
 }
 
 impl Default for ExecutorConfig {
@@ -274,6 +280,9 @@ impl Default for ExecutorConfig {
             max_concurrent_wasm: 10,
             max_web_response_size: 10 * 1024 * 1024, // 10 MB
             default_web_timeout_secs: 30,
+            batch_window_ms: Some(50),
+            max_batch_size: Some(8),
+            min_batch_size: Some(4),
         }
     }
 }

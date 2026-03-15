@@ -18,17 +18,22 @@
 //! └──────┘  └──────────┘
 //! ```
 
+pub mod batch;
 pub mod cache;
 pub mod distribution;
 pub mod gguf;
 pub mod model;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::RwLock;
 
+pub use batch::{
+    BatchAggregator, BatchConfig, BatchError, BatchInferenceExecutor,
+    BatchProcessor, BatchRequest, BatchResponse, BatchStats,
+};
 pub use cache::{CacheError, LoadedModel, ModelCache, ModelHandle};
 pub use distribution::{
     DistributionError, DownloadProgress, ModelAnnouncement, ModelDistributor,

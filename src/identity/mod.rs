@@ -1,6 +1,6 @@
 //! Node identity - Ed25519 keypair management.
 
-use ed25519_dalek::{SecretKey, SigningKey, VerifyingKey, Signature, Signer, Verifier};
+use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use libp2p::identity::{Keypair as Libp2pKeypair, ed25519};
 use libp2p::PeerId;
 use rand::rngs::OsRng;

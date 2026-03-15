@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use libp2p::PeerId;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::job::{
-    network::{self, JobMessage, JobRequestMessage, JobBidMessage, BidAcceptedMessage, JobResultMessage},
-    Job, JobBid, JobId, JobManager, JobRequest, JobResult, ResourceType,
+    network::{self, JobMessage, JobRequestMessage, JobBidMessage, BidAcceptedMessage},
+    JobBid, JobId, JobManager, JobRequest, JobResult, ResourceType,
 };
-use crate::p2p::{Network, NetworkEvent};
+use crate::p2p::Network;
 use crate::wallet::to_micro;
 
 use super::router::PeerFilter;

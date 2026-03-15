@@ -11,7 +11,6 @@ use std::sync::Arc;
 use crate::bootstrap;
 use crate::config::Config;
 use crate::db::Database;
-use crate::executor::task::{ExecutionTask, InferenceTask};
 use crate::identity::NodeIdentity;
 use crate::runtime::Runtime;
 

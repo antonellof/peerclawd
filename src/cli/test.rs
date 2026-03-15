@@ -1,7 +1,6 @@
 //! `peerclawd test` command - Test distributed execution and cluster operations.
 
 use clap::{Args, Subcommand};
-use std::collections::HashMap;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +8,7 @@ use std::time::Duration;
 use crate::bootstrap;
 use crate::config::Config;
 use crate::db::Database;
-use crate::executor::task::{ExecutionTask, InferenceTask, WebFetchTask, TaskData};
+use crate::executor::task::TaskData;
 use crate::identity::NodeIdentity;
 use crate::runtime::Runtime;
 use crate::wallet::from_micro;
