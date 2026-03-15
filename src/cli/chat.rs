@@ -86,7 +86,23 @@ enum SlashCommand {
     Export(PathBuf),
     Distributed(bool),
     Stream(bool),
+    // New Claude-Code-style commands
+    Cost,
+    Balance,
+    Peers,
+    Jobs,
+    Compact,
+    Doctor,
+    Config,
     Quit,
+}
+
+/// Session statistics for tracking usage
+#[derive(Debug, Default)]
+struct SessionStats {
+    total_tokens: u64,
+    total_requests: u32,
+    start_time: Option<std::time::Instant>,
 }
 
 fn parse_slash_command(input: &str) -> Option<SlashCommand> {
@@ -123,6 +139,14 @@ fn parse_slash_command(input: &str) -> Option<SlashCommand> {
                 .unwrap_or(true);
             Some(SlashCommand::Stream(enabled))
         }
+        // New Claude-Code-style commands
+        "cost" => Some(SlashCommand::Cost),
+        "balance" | "bal" | "wallet" => Some(SlashCommand::Balance),
+        "peers" | "p" => Some(SlashCommand::Peers),
+        "jobs" | "j" => Some(SlashCommand::Jobs),
+        "compact" => Some(SlashCommand::Compact),
+        "doctor" | "doc" => Some(SlashCommand::Doctor),
+        "config" | "conf" => Some(SlashCommand::Config),
         "quit" | "exit" | "q" => Some(SlashCommand::Quit),
         _ => None,
     }
@@ -131,21 +155,34 @@ fn parse_slash_command(input: &str) -> Option<SlashCommand> {
 fn show_help() {
     println!("\n\x1b[1m=== PeerClaw'd Chat Commands ===\x1b[0m");
     println!();
+    println!("  \x1b[1mGeneral\x1b[0m");
     println!("  \x1b[36m/help, /h, /?\x1b[0m         Show this help");
-    println!("  \x1b[36m/clear, /c\x1b[0m            Clear conversation history");
     println!("  \x1b[36m/status, /s\x1b[0m           Show runtime status");
-    println!("  \x1b[36m/model <name>\x1b[0m         Switch model (e.g., /model llama-7b)");
+    println!("  \x1b[36m/settings\x1b[0m             Open interactive settings menu");
+    println!("  \x1b[36m/config\x1b[0m               Open config file location");
+    println!("  \x1b[36m/doctor\x1b[0m               Health check (models, network, wallet)");
+    println!();
+    println!("  \x1b[1mConversation\x1b[0m");
+    println!("  \x1b[36m/clear, /c\x1b[0m            Clear conversation history");
+    println!("  \x1b[36m/history\x1b[0m              Show conversation summary");
+    println!("  \x1b[36m/compact\x1b[0m              Compress history to save context");
+    println!("  \x1b[36m/export <path>\x1b[0m        Export conversation to file");
+    println!();
+    println!("  \x1b[1mModel Settings\x1b[0m");
+    println!("  \x1b[36m/model <name>\x1b[0m         Switch model (e.g., /model llama-3.2-1b)");
     println!("  \x1b[36m/temperature <n>\x1b[0m      Set temperature (0.0-2.0)");
     println!("  \x1b[36m/max-tokens <n>\x1b[0m       Set max tokens per response");
     println!("  \x1b[36m/system <prompt>\x1b[0m      Set system prompt");
-    println!("  \x1b[36m/settings\x1b[0m             Open interactive settings menu");
-    println!("  \x1b[36m/history\x1b[0m              Show conversation summary");
-    println!("  \x1b[36m/export <path>\x1b[0m        Export conversation to file");
-    println!("  \x1b[36m/distributed on|off\x1b[0m   Toggle distributed mode");
-    println!("  \x1b[36m/stream on|off\x1b[0m        Toggle streaming (real-time output)");
-    println!("  \x1b[36m/quit, /exit, /q\x1b[0m      Exit chat");
+    println!("  \x1b[36m/stream on|off\x1b[0m        Toggle streaming output");
     println!();
-    println!("  Type 'quit' or 'exit' to end the session.");
+    println!("  \x1b[1mNetwork & Economy\x1b[0m");
+    println!("  \x1b[36m/cost\x1b[0m                 Show session token usage");
+    println!("  \x1b[36m/balance\x1b[0m              Show wallet balance");
+    println!("  \x1b[36m/peers\x1b[0m                Show connected peers");
+    println!("  \x1b[36m/jobs\x1b[0m                 Show active/recent jobs");
+    println!("  \x1b[36m/distributed on|off\x1b[0m   Toggle distributed mode");
+    println!();
+    println!("  \x1b[36m/quit, /exit, /q\x1b[0m      Exit chat");
     println!();
 }
 
@@ -397,6 +434,13 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
     // Conversation history
     let mut history: Vec<(String, String)> = Vec::new();
 
+    // Session statistics for /cost command
+    let mut session_stats = SessionStats {
+        total_tokens: 0,
+        total_requests: 0,
+        start_time: Some(std::time::Instant::now()),
+    };
+
     // Chat loop
     let stdin = io::stdin();
     loop {
@@ -511,6 +555,181 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                     println!("\x1b[32mStreaming: {}\x1b[0m\n", if enabled { "On" } else { "Off" });
                     continue;
                 }
+                // New Claude-Code-style commands
+                SlashCommand::Cost => {
+                    println!("\n\x1b[1m=== Session Cost ===\x1b[0m");
+                    println!("  Tokens used:    \x1b[36m{}\x1b[0m", session_stats.total_tokens);
+                    println!("  Requests:       {}", session_stats.total_requests);
+                    if let Some(start) = session_stats.start_time {
+                        let elapsed = start.elapsed().as_secs();
+                        let mins = elapsed / 60;
+                        let secs = elapsed % 60;
+                        println!("  Session time:   {}m {}s", mins, secs);
+                    }
+                    // Estimate cost in PCLAW (rough: 1 PCLAW per 1000 tokens)
+                    let estimated_cost = session_stats.total_tokens as f64 / 1000.0;
+                    println!("  Est. cost:      \x1b[33m{:.4} PCLAW\x1b[0m", estimated_cost);
+                    println!();
+                    continue;
+                }
+                SlashCommand::Balance => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let balance = crate::wallet::from_micro(rt.balance().await);
+                            println!("\n  Wallet balance: \x1b[33m{:.6} PCLAW\x1b[0m\n", balance);
+                        }
+                        ChatMode::Api { base_url } => {
+                            if let Ok(status) = fetch_api_status(base_url).await {
+                                println!("\n{}\n", status);
+                            } else {
+                                println!("\n  \x1b[31mCould not fetch balance\x1b[0m\n");
+                            }
+                        }
+                    }
+                    continue;
+                }
+                SlashCommand::Peers => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let count: usize = rt.connected_peers_count().await;
+                            let network = rt.network.read().await;
+                            let peers = network.connected_peers();
+                            println!("\n\x1b[1m=== Peers ({}) ===\x1b[0m", count);
+                            if peers.is_empty() {
+                                println!("  \x1b[33mNo peers connected\x1b[0m");
+                            } else {
+                                for peer in peers.iter().take(10) {
+                                    let short = format!("{}...{}",
+                                        &peer.to_string()[..8],
+                                        &peer.to_string()[peer.to_string().len()-8..]);
+                                    println!("  • \x1b[36m{}\x1b[0m", short);
+                                }
+                                if peers.len() > 10 {
+                                    println!("  ... and {} more", peers.len() - 10);
+                                }
+                            }
+                            println!();
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mPeer info not available via API\x1b[0m\n");
+                        }
+                    }
+                    continue;
+                }
+                SlashCommand::Jobs => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let jm = rt.job_manager.read().await;
+                            let active = jm.active_jobs().await;
+                            let completed = jm.completed_jobs(5).await;
+                            println!("\n\x1b[1m=== Jobs ===\x1b[0m");
+                            println!("  Active: \x1b[32m{}\x1b[0m", active.len());
+                            if !active.is_empty() {
+                                for job in active.iter().take(5) {
+                                    let id_str = &job.id.0;
+                                    let short_id = if id_str.len() > 12 { &id_str[..12] } else { id_str };
+                                    println!("    • {} - {}", short_id, job.status);
+                                }
+                            }
+                            println!("  Recent completed: {}", completed.len());
+                            for job in completed.iter().take(3) {
+                                let id_str = &job.id.0;
+                                let short_id = if id_str.len() > 12 { &id_str[..12] } else { id_str };
+                                println!("    • {} - {}", short_id, job.status);
+                            }
+                            println!();
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mJob info not available via API\x1b[0m\n");
+                        }
+                    }
+                    continue;
+                }
+                SlashCommand::Compact => {
+                    if history.len() <= 2 {
+                        println!("\n  \x1b[33mHistory too short to compact\x1b[0m\n");
+                    } else {
+                        // Keep only last 2 exchanges but summarize earlier ones
+                        let old_len = history.len();
+                        let summary = format!(
+                            "[Previous {} exchanges summarized: discussed {}]",
+                            old_len - 2,
+                            history.iter().take(old_len - 2)
+                                .map(|(q, _)| q.split_whitespace().take(3).collect::<Vec<_>>().join(" "))
+                                .collect::<Vec<_>>().join(", ")
+                        );
+                        history = history.split_off(old_len - 2);
+                        history.insert(0, (summary, "Understood, continuing from context.".to_string()));
+                        println!("\n  \x1b[32mCompacted {} exchanges into summary\x1b[0m\n", old_len - 2);
+                    }
+                    continue;
+                }
+                SlashCommand::Doctor => {
+                    println!("\n\x1b[1m=== Health Check ===\x1b[0m\n");
+
+                    // Check models
+                    let models_dir = bootstrap::base_dir().join("models");
+                    let model_count = std::fs::read_dir(&models_dir)
+                        .map(|e| e.filter_map(|f| f.ok())
+                            .filter(|f| f.path().extension().map_or(false, |e| e == "gguf"))
+                            .count())
+                        .unwrap_or(0);
+                    if model_count > 0 {
+                        println!("  \x1b[32m✓\x1b[0m Models: {} GGUF files found", model_count);
+                    } else {
+                        println!("  \x1b[31m✗\x1b[0m Models: No models found");
+                        println!("    Run: peerclawd models download llama-3.2-1b");
+                    }
+
+                    // Check identity
+                    if bootstrap::identity_path().exists() {
+                        println!("  \x1b[32m✓\x1b[0m Identity: Configured");
+                    } else {
+                        println!("  \x1b[31m✗\x1b[0m Identity: Not configured");
+                    }
+
+                    // Check config
+                    if bootstrap::config_path().exists() {
+                        println!("  \x1b[32m✓\x1b[0m Config: Found");
+                    } else {
+                        println!("  \x1b[33m!\x1b[0m Config: Using defaults");
+                    }
+
+                    // Check network/wallet if runtime available
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let peers: usize = rt.connected_peers_count().await;
+                            if peers > 0 {
+                                println!("  \x1b[32m✓\x1b[0m Network: {} peers connected", peers);
+                            } else {
+                                println!("  \x1b[33m!\x1b[0m Network: No peers (standalone mode)");
+                            }
+
+                            let balance = crate::wallet::from_micro(rt.balance().await);
+                            if balance > 0.0 {
+                                println!("  \x1b[32m✓\x1b[0m Wallet: {:.2} PCLAW", balance);
+                            } else {
+                                println!("  \x1b[33m!\x1b[0m Wallet: Empty");
+                            }
+                        }
+                        ChatMode::Api { base_url } => {
+                            println!("  \x1b[32m✓\x1b[0m API: Connected to {}", base_url);
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::Config => {
+                    let config_path = bootstrap::config_path();
+                    let settings_path = bootstrap::base_dir().join("chat_settings.json");
+                    println!("\n\x1b[1m=== Config Files ===\x1b[0m");
+                    println!("  Main config:    \x1b[36m{}\x1b[0m", config_path.display());
+                    println!("  Chat settings:  \x1b[36m{}\x1b[0m", settings_path.display());
+                    println!("  Data directory: \x1b[36m{}\x1b[0m", bootstrap::base_dir().display());
+                    println!("  Models:         \x1b[36m{}\x1b[0m", bootstrap::base_dir().join("models").display());
+                    println!();
+                    continue;
+                }
                 SlashCommand::Quit => {
                     println!("\x1b[33mGoodbye!\x1b[0m");
                     break;
@@ -611,7 +830,13 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                 if !settings.stream {
                     println!("{}", text);
                 }
-                history.push((input.to_string(), text));
+                history.push((input.to_string(), text.clone()));
+
+                // Update session stats (estimate tokens from text length / 4)
+                let estimated_tokens = (text.len() / 4) as u64;
+                session_stats.total_tokens += estimated_tokens;
+                session_stats.total_requests += 1;
+
                 if let Some(m) = metrics {
                     println!("\n{}", m);
                 }

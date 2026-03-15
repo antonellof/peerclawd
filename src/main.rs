@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
 
     // For interactive mode, use minimal logging
     let log_level = match &cli.command {
-        None | Some(Command::Start) | Some(Command::Chat(_)) => "peerclawd=warn",
+        None | Some(Command::Start) | Some(Command::Chat(_)) | Some(Command::Run(_)) => "peerclawd=warn",
         _ => "peerclawd=info",
     };
 
@@ -39,6 +39,19 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Command::Chat(args)) => {
             peerclawd::cli::chat::run(args).await?;
+        }
+        // Ollama/vLLM-style commands
+        Some(Command::Run(args)) => {
+            peerclawd::cli::run::run(args).await?;
+        }
+        Some(Command::Pull(args)) => {
+            peerclawd::cli::run::pull(args).await?;
+        }
+        Some(Command::List) => {
+            peerclawd::cli::run::list().await?;
+        }
+        Some(Command::Ps) => {
+            peerclawd::cli::run::ps().await?;
         }
         Some(Command::Models(args)) => {
             peerclawd::cli::models::run(args).await?;

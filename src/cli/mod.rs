@@ -6,6 +6,7 @@ pub mod job;
 pub mod models;
 pub mod network;
 pub mod peers;
+pub mod run;
 pub mod serve;
 pub mod start;
 pub mod test;
@@ -36,6 +37,19 @@ pub enum Command {
     /// Interactive AI chat
     #[command(visible_alias = "c")]
     Chat(chat::ChatArgs),
+
+    /// Run a model with a prompt (Ollama-style)
+    Run(run::RunArgs),
+
+    /// Pull/download a model (alias for models download)
+    Pull(run::PullArgs),
+
+    /// List downloaded models (alias for models list)
+    #[command(visible_alias = "ls")]
+    List,
+
+    /// Show running jobs/processes
+    Ps,
 
     /// Manage AI models (list, download, remove)
     #[command(visible_alias = "m")]
