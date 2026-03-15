@@ -36,7 +36,7 @@ pub use resource::{MonitorConfig, ResourceMonitor, ResourceState, TaskType};
 pub use router::{PeerFilter, RouterConfig, RoutingDecision, TaskRouter};
 pub use task::*;
 
-use crate::inference::gguf::{GgufConfig, GgufEngine, GgufModelHandle};
+use crate::inference::gguf::{GgufConfig, GgufEngine, GgufModelHandle, TokenCallback};
 use crate::inference::GenerateRequest;
 use crate::job::JobManager;
 use crate::p2p::Network;
@@ -435,6 +435,117 @@ impl TaskExecutor {
     pub async fn has_model(&self, model_id: &str) -> bool {
         let state = self.resource_monitor.current_state().await;
         state.has_model(model_id)
+    }
+
+    /// Execute inference locally with streaming - prints tokens directly to stdout.
+    /// Returns the final InferenceResult after completion.
+    pub async fn execute_inference_streaming_print(
+        &self,
+        task: InferenceTask,
+    ) -> Result<InferenceResult, ExecutorError> {
+        use std::io::Write;
+
+        // Build prompt with messages
+        let prompt = task.messages
+            .iter()
+            .map(|m| {
+                match m.role {
+                    MessageRole::System => format!("System: {}\n\n", m.content),
+                    MessageRole::User => format!("User: {}\n", m.content),
+                    MessageRole::Assistant => format!("Assistant: {}\n\n", m.content),
+                }
+            })
+            .collect::<String>() + "Assistant:";
+
+        tracing::info!(
+            model = %task.model,
+            max_tokens = task.max_tokens,
+            "Executing streaming inference"
+        );
+
+        // Find model file (same logic as execute_inference_local)
+        let model_filename = format!("{}.gguf", task.model.to_lowercase().replace(" ", "-"));
+        let model_path = self.config.models_dir.join(&model_filename);
+
+        let actual_path = if model_path.exists() {
+            model_path
+        } else {
+            let mut found_path = None;
+            if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map_or(false, |e| e == "gguf") {
+                        let filename = path.file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("");
+                        if filename.to_lowercase().contains(&task.model.to_lowercase().replace("-", "").replace(" ", ""))
+                           || task.model.to_lowercase().replace("-", "").replace(" ", "").contains(&filename.to_lowercase().replace("-", "").replace(" ", "")) {
+                            found_path = Some(path);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if found_path.is_none() {
+                if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |e| e == "gguf") {
+                            found_path = Some(path);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            match found_path {
+                Some(p) => p,
+                None => {
+                    return Err(ExecutorError::InferenceError(format!(
+                        "Model not found: {}",
+                        task.model,
+                    )));
+                }
+            }
+        };
+
+        // Load model
+        let engine = self.gguf_engine.read().await;
+        let model_handle = engine.load(&actual_path)
+            .map_err(|e| ExecutorError::InferenceError(format!("Failed to load model: {}", e)))?;
+
+        // Generate with streaming callback that prints directly
+        let request = GenerateRequest {
+            model: task.model.clone(),
+            prompt,
+            max_tokens: task.max_tokens,
+            temperature: task.temperature,
+            top_p: 0.9,
+            stop_sequences: task.stop_sequences.clone(),
+        };
+
+        // Create callback that prints tokens directly to stdout
+        let callback: TokenCallback = Box::new(|token: &str| {
+            print!("{}", token);
+            let _ = std::io::stdout().flush();
+        });
+
+        let response = engine.generate_streaming(&model_handle, &request, callback)
+            .map_err(|e| ExecutorError::InferenceError(format!("Streaming generation failed: {}", e)))?;
+
+        let finish_reason = match response.finish_reason {
+            crate::inference::FinishReason::Stop => FinishReason::Stop,
+            crate::inference::FinishReason::Length => FinishReason::Length,
+            crate::inference::FinishReason::ContentFilter => FinishReason::ContentFilter,
+        };
+
+        Ok(InferenceResult {
+            text: response.text,
+            tokens_generated: response.tokens_generated,
+            tokens_per_second: response.tokens_per_second,
+            finish_reason,
+        })
     }
 }
 

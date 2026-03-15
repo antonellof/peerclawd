@@ -7,7 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 use super::{FinishReason, GenerateRequest, GenerateResponse, InferenceError, ModelId};
 
@@ -41,6 +41,9 @@ impl Default for GgufConfig {
     }
 }
 
+/// Token callback for streaming generation.
+pub type TokenCallback = Box<dyn FnMut(&str) + Send>;
+
 /// GGUF model backend trait.
 /// This trait abstracts the actual llama.cpp implementation,
 /// allowing for testing without the actual library.
@@ -54,6 +57,14 @@ pub trait GgufBackend: Send + Sync {
         &self,
         model: &GgufModelHandle,
         request: &GenerateRequest,
+    ) -> Result<GenerateResponse, GgufError>;
+
+    /// Generate text with streaming callback - called for each token as it's generated.
+    fn generate_streaming(
+        &self,
+        model: &GgufModelHandle,
+        request: &GenerateRequest,
+        token_callback: TokenCallback,
     ) -> Result<GenerateResponse, GgufError>;
 
     /// Get model info from a loaded model.
@@ -216,7 +227,21 @@ impl GgufBackend for PlaceholderBackend {
         })
     }
 
-    fn model_info(&self, model: &GgufModelHandle) -> GgufModelInfo {
+    fn generate_streaming(
+        &self,
+        model: &GgufModelHandle,
+        request: &GenerateRequest,
+        mut token_callback: TokenCallback,
+    ) -> Result<GenerateResponse, GgufError> {
+        // For placeholder, just call the regular generate and stream word by word
+        let response = self.generate(model, request)?;
+        for word in response.text.split_inclusive(' ') {
+            token_callback(word);
+        }
+        Ok(response)
+    }
+
+    fn model_info(&self, _model: &GgufModelHandle) -> GgufModelInfo {
         GgufModelInfo {
             n_params: 0,
             n_ctx: 4096,
@@ -456,6 +481,129 @@ impl GgufBackend for LlamaCppBackend {
         })
     }
 
+    fn generate_streaming(
+        &self,
+        model: &GgufModelHandle,
+        request: &GenerateRequest,
+        mut token_callback: TokenCallback,
+    ) -> Result<GenerateResponse, GgufError> {
+        let start = Instant::now();
+
+        tracing::info!(
+            model_id = %model.id,
+            prompt_len = request.prompt.len(),
+            max_tokens = request.max_tokens,
+            "Generating completion with streaming"
+        );
+
+        let inner = model.inner.as_ref()
+            .ok_or_else(|| GgufError::GenerationFailed("Model not loaded".to_string()))?;
+
+        // Create context params
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(Some(std::num::NonZeroU32::new(self.config.n_ctx).unwrap()))
+            .with_n_batch(self.config.n_batch)
+            .with_n_threads(self.config.n_threads as i32)
+            .with_n_threads_batch(self.config.n_threads as i32);
+
+        // Create context
+        let mut ctx = inner.model.model.new_context(&self.backend, ctx_params)
+            .map_err(|e| GgufError::GenerationFailed(format!("Failed to create context: {:?}", e)))?;
+
+        // Tokenize the prompt
+        let tokens = inner.model.model.str_to_token(&request.prompt, AddBos::Always)
+            .map_err(|e| GgufError::TokenizationFailed(format!("{:?}", e)))?;
+
+        // Create batch and add prompt tokens
+        let mut batch = LlamaBatch::new(512, 1);
+
+        for (i, token) in tokens.iter().enumerate() {
+            let is_last = i == tokens.len() - 1;
+            batch.add(*token, i as i32, &[0], is_last)
+                .map_err(|e| GgufError::GenerationFailed(format!("Failed to add token to batch: {:?}", e)))?;
+        }
+
+        // Decode the prompt
+        ctx.decode(&mut batch)
+            .map_err(|e| GgufError::GenerationFailed(format!("Failed to decode prompt: {:?}", e)))?;
+
+        let ttfb = start.elapsed();
+
+        // Set up sampler
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::dist(1234),
+            LlamaSampler::greedy(),
+        ]);
+
+        // Generate tokens with streaming
+        let mut output = String::new();
+        let mut token_count = 0u32;
+        let mut n_cur = tokens.len();
+
+        while token_count < request.max_tokens {
+            // Sample next token
+            let new_token = sampler.sample(&ctx, (batch.n_tokens() - 1) as i32);
+            sampler.accept(new_token);
+
+            // Check for end of sequence
+            if inner.model.model.is_eog_token(new_token) {
+                break;
+            }
+
+            // Decode token to text and stream it
+            if let Ok(bytes) = inner.model.model.token_to_piece_bytes(new_token, 256, false, None) {
+                if let Ok(s) = std::str::from_utf8(&bytes) {
+                    output.push_str(s);
+                    // Stream the token to the callback
+                    token_callback(s);
+                }
+            }
+
+            token_count += 1;
+
+            // Prepare for next token
+            batch.clear();
+            batch.add(new_token, n_cur as i32, &[0], true)
+                .map_err(|e| GgufError::GenerationFailed(format!("Failed to add token: {:?}", e)))?;
+
+            // Decode
+            ctx.decode(&mut batch)
+                .map_err(|e| GgufError::GenerationFailed(format!("Failed to decode: {:?}", e)))?;
+
+            n_cur += 1;
+        }
+
+        let elapsed = start.elapsed();
+        let tokens_per_second = if elapsed.as_secs_f64() > 0.0 {
+            token_count as f64 / elapsed.as_secs_f64()
+        } else {
+            0.0
+        };
+
+        tracing::info!(
+            model_id = %model.id,
+            tokens = token_count,
+            tps = format!("{:.1}", tokens_per_second),
+            "Streaming generation complete"
+        );
+
+        let finish_reason = if token_count >= request.max_tokens {
+            FinishReason::Length
+        } else {
+            FinishReason::Stop
+        };
+
+        Ok(GenerateResponse {
+            text: output,
+            tokens_generated: token_count,
+            tokens_per_second,
+            time_to_first_token_ms: ttfb.as_millis() as u64,
+            total_time_ms: elapsed.as_millis() as u64,
+            finish_reason,
+            model_id: model.id.clone(),
+        })
+    }
+
     fn model_info(&self, _model: &GgufModelHandle) -> GgufModelInfo {
         GgufModelInfo {
             n_params: 0,
@@ -517,6 +665,16 @@ impl GgufEngine {
         self.backend.generate(model, request)
     }
 
+    /// Generate text with streaming callback.
+    pub fn generate_streaming(
+        &self,
+        model: &GgufModelHandle,
+        request: &GenerateRequest,
+        token_callback: TokenCallback,
+    ) -> Result<GenerateResponse, GgufError> {
+        self.backend.generate_streaming(model, request, token_callback)
+    }
+
     /// Get model info.
     pub fn model_info(&self, model: &GgufModelHandle) -> GgufModelInfo {
         self.backend.model_info(model)
@@ -565,6 +723,43 @@ impl AsyncGgufEngine {
     ) -> Result<GenerateResponse, GgufError> {
         let engine = self.inner.lock().await;
         engine.generate(model, request)
+    }
+
+    /// Generate with streaming via an mpsc channel.
+    /// Returns a receiver that yields tokens as they're generated,
+    /// and eventually the final GenerateResponse.
+    pub async fn generate_streaming_channel(
+        &self,
+        model: &GgufModelHandle,
+        request: &GenerateRequest,
+    ) -> (mpsc::Receiver<String>, tokio::task::JoinHandle<Result<GenerateResponse, GgufError>>) {
+        let (tx, rx) = mpsc::channel::<String>(256);
+
+        // Clone values needed for the closure
+        let engine = self.inner.clone();
+        let model_id = model.id.clone();
+        let model_path = model.path.clone();
+        let model_memory = model.memory_mb;
+        let request = request.clone();
+
+        let handle = tokio::task::spawn_blocking(move || {
+            // We need to re-acquire the lock in blocking context
+            let rt = tokio::runtime::Handle::current();
+            let engine = rt.block_on(engine.lock());
+
+            // Create a placeholder model handle (the actual inner is in the engine's cache)
+            // This is a limitation - we need a way to reference the model
+            // For now, reload the model if needed
+            let model_handle = GgufModelHandle::placeholder(model_id, model_path, model_memory);
+
+            let callback: TokenCallback = Box::new(move |token: &str| {
+                let _ = tx.blocking_send(token.to_string());
+            });
+
+            engine.generate_streaming(&model_handle, &request, callback)
+        });
+
+        (rx, handle)
     }
 
     pub async fn unload(&self, model: GgufModelHandle) {

@@ -58,7 +58,12 @@ cargo build --release
 
 # Use distributed inference (offload to network peers)
 ./target/release/peerclawd chat --distributed
+
+# Disable streaming (wait for complete response)
+./target/release/peerclawd chat --no-stream
 ```
+
+**Streaming:** By default, tokens are printed as they're generated for a more interactive experience. Use `--no-stream` to wait for the complete response.
 
 Chat commands (Claude-Code style):
 - `/help` - Show all available commands
@@ -70,6 +75,7 @@ Chat commands (Claude-Code style):
 - `/history` - Show conversation summary
 - `/export <path>` - Export conversation to file
 - `/distributed on|off` - Toggle distributed mode
+- `/stream on|off` - Toggle streaming (real-time token output)
 - `/clear` - Clear conversation history
 - `/quit` or `exit` - Exit chat
 
@@ -717,6 +723,7 @@ $ peerclawd serve --web :8080
 - [x] Multi-peer cluster testing (`peerclawd test cluster`)
 - [x] OpenAI-compatible API (`/v1/chat/completions`, `/v1/models`)
 - [x] Peer ID tracking across jobs and chat responses
+- [x] Real-time token streaming in CLI chat
 - [ ] HTTP 402 web access proxy layer
 - [ ] Distributed storage with BLAKE3 content-addressed chunking
 - [ ] Reputation system (uptime, delivery rate, verification pass rate)

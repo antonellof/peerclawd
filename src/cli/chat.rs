@@ -24,7 +24,11 @@ pub struct ChatSettings {
     pub temperature: f32,
     pub system_prompt: String,
     pub distributed: bool,
+    #[serde(default = "default_stream")]
+    pub stream: bool,
 }
+
+fn default_stream() -> bool { true }
 
 impl Default for ChatSettings {
     fn default() -> Self {
@@ -34,6 +38,7 @@ impl Default for ChatSettings {
             temperature: 0.7,
             system_prompt: "You are a helpful AI assistant.".to_string(),
             distributed: false,
+            stream: true,
         }
     }
 }
@@ -80,6 +85,7 @@ enum SlashCommand {
     History,
     Export(PathBuf),
     Distributed(bool),
+    Stream(bool),
     Quit,
 }
 
@@ -112,6 +118,11 @@ fn parse_slash_command(input: &str) -> Option<SlashCommand> {
                 .unwrap_or(true);
             Some(SlashCommand::Distributed(enabled))
         }
+        "stream" => {
+            let enabled = arg.map(|s| matches!(s.to_lowercase().as_str(), "on" | "true" | "1" | "yes"))
+                .unwrap_or(true);
+            Some(SlashCommand::Stream(enabled))
+        }
         "quit" | "exit" | "q" => Some(SlashCommand::Quit),
         _ => None,
     }
@@ -131,6 +142,7 @@ fn show_help() {
     println!("  \x1b[36m/history\x1b[0m              Show conversation summary");
     println!("  \x1b[36m/export <path>\x1b[0m        Export conversation to file");
     println!("  \x1b[36m/distributed on|off\x1b[0m   Toggle distributed mode");
+    println!("  \x1b[36m/stream on|off\x1b[0m        Toggle streaming (real-time output)");
     println!("  \x1b[36m/quit, /exit, /q\x1b[0m      Exit chat");
     println!();
     println!("  Type 'quit' or 'exit' to end the session.");
@@ -298,6 +310,10 @@ pub struct ChatArgs {
     /// Force standalone mode (use separate database)
     #[arg(long)]
     pub standalone: bool,
+
+    /// Disable streaming (wait for complete response)
+    #[arg(long)]
+    pub no_stream: bool,
 }
 
 /// Mode of operation for the chat
@@ -328,11 +344,15 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
     if args.distributed {
         settings.distributed = true;
     }
+    if args.no_stream {
+        settings.stream = false;
+    }
 
     println!("\x1b[1m=== PeerClaw'd AI Chat ===\x1b[0m");
     println!("Model: \x1b[36m{}\x1b[0m", settings.model);
     println!("Max tokens: {}", settings.max_tokens);
     println!("Temperature: {:.2}", settings.temperature);
+    println!("Streaming: {}", if settings.stream { "\x1b[32mOn\x1b[0m" } else { "\x1b[33mOff\x1b[0m" });
 
     // Determine mode
     let mode = if args.standalone {
@@ -485,6 +505,12 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                     println!("\x1b[32mDistributed mode: {}\x1b[0m\n", if enabled { "On" } else { "Off" });
                     continue;
                 }
+                SlashCommand::Stream(enabled) => {
+                    settings.stream = enabled;
+                    settings.save().ok();
+                    println!("\x1b[32mStreaming: {}\x1b[0m\n", if enabled { "On" } else { "Off" });
+                    continue;
+                }
                 SlashCommand::Quit => {
                     println!("\x1b[33mGoodbye!\x1b[0m");
                     break;
@@ -507,53 +533,84 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
 
         let response = match &mode {
             ChatMode::Local { runtime: rt } => {
-                let task = InferenceTask::new(&settings.model, &full_prompt)
-                    .with_max_tokens(settings.max_tokens)
-                    .with_temperature(settings.temperature);
+                if settings.stream {
+                    // Use streaming inference - tokens print directly as they're generated
+                    let result = rt.inference_streaming_print(
+                        &settings.model,
+                        &full_prompt,
+                        settings.max_tokens,
+                        settings.temperature,
+                    ).await;
 
-                match rt.execute_task(ExecutionTask::Inference(task)).await {
-                    Ok(result) => {
-                        let provider_info = match &result.location {
-                            ExecutionLocation::Local => "Local".to_string(),
-                            ExecutionLocation::Remote { peer_id, .. } => {
-                                let short = if peer_id.len() > 16 {
-                                    format!("{}...{}", &peer_id[..8], &peer_id[peer_id.len()-8..])
-                                } else {
-                                    peer_id.clone()
-                                };
-                                format!("Remote ({})", short)
-                            }
-                        };
-                        match &result.data {
-                            TaskData::Inference(r) => {
-                                let metrics = if r.tokens_generated > 0 {
-                                    Some(format!(
-                                        "\x1b[90m[{} tokens, {:.1} tok/s, {}]\x1b[0m",
-                                        r.tokens_generated,
-                                        r.tokens_per_second,
-                                        provider_info
-                                    ))
-                                } else {
-                                    None
-                                };
-                                Ok((r.text.clone(), metrics))
-                            }
-                            TaskData::Error(e) => Err(e.clone()),
-                            _ => Err("Unexpected response type".to_string()),
+                    match result {
+                        Ok(result) => {
+                            // Text was already printed via streaming callback
+                            let metrics = if result.tokens_generated > 0 {
+                                Some(format!(
+                                    "\x1b[90m[{} tokens, {:.1} tok/s, Local, streamed]\x1b[0m",
+                                    result.tokens_generated,
+                                    result.tokens_per_second,
+                                ))
+                            } else {
+                                None
+                            };
+                            Ok((result.text, metrics))
                         }
+                        Err(e) => Err(e.to_string()),
                     }
-                    Err(e) => Err(e.to_string()),
+                } else {
+                    // Non-streaming inference
+                    let task = InferenceTask::new(&settings.model, &full_prompt)
+                        .with_max_tokens(settings.max_tokens)
+                        .with_temperature(settings.temperature);
+
+                    match rt.execute_task(ExecutionTask::Inference(task)).await {
+                        Ok(result) => {
+                            let provider_info = match &result.location {
+                                ExecutionLocation::Local => "Local".to_string(),
+                                ExecutionLocation::Remote { peer_id, .. } => {
+                                    let short = if peer_id.len() > 16 {
+                                        format!("{}...{}", &peer_id[..8], &peer_id[peer_id.len()-8..])
+                                    } else {
+                                        peer_id.clone()
+                                    };
+                                    format!("Remote ({})", short)
+                                }
+                            };
+                            match &result.data {
+                                TaskData::Inference(r) => {
+                                    let metrics = if r.tokens_generated > 0 {
+                                        Some(format!(
+                                            "\x1b[90m[{} tokens, {:.1} tok/s, {}]\x1b[0m",
+                                            r.tokens_generated,
+                                            r.tokens_per_second,
+                                            provider_info
+                                        ))
+                                    } else {
+                                        None
+                                    };
+                                    Ok((r.text.clone(), metrics))
+                                }
+                                TaskData::Error(e) => Err(e.clone()),
+                                _ => Err("Unexpected response type".to_string()),
+                            }
+                        }
+                        Err(e) => Err(e.to_string()),
+                    }
                 }
             }
             ChatMode::Api { base_url } => {
-                // Use the API endpoint
+                // Use the API endpoint (non-streaming for now)
                 execute_via_api(base_url, &settings.model, &full_prompt, settings.max_tokens, settings.temperature).await
             }
         };
 
         match response {
             Ok((text, metrics)) => {
-                println!("{}", text);
+                // For streaming, text was already printed
+                if !settings.stream {
+                    println!("{}", text);
+                }
                 history.push((input.to_string(), text));
                 if let Some(m) = metrics {
                     println!("\n{}", m);

@@ -164,6 +164,21 @@ impl Runtime {
         self.executor.execute(ExecutionTask::Inference(task)).await
     }
 
+    /// Execute inference with streaming - tokens are printed directly to stdout as generated.
+    pub async fn inference_streaming_print(
+        &self,
+        model: &str,
+        prompt: &str,
+        max_tokens: u32,
+        temperature: f32,
+    ) -> Result<crate::executor::task::InferenceResult, crate::executor::ExecutorError> {
+        let task = InferenceTask::new(model, prompt)
+            .with_max_tokens(max_tokens)
+            .with_temperature(temperature);
+
+        self.executor.execute_inference_streaming_print(task).await
+    }
+
     /// Execute a web fetch task.
     pub async fn web_fetch(&self, url: &str) -> Result<TaskResult, crate::executor::ExecutorError> {
         let task = WebFetchTask::get(url);
