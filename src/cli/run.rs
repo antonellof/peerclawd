@@ -24,14 +24,6 @@ pub struct RunArgs {
     /// Optional prompt (if not provided, enters interactive mode)
     pub prompt: Option<String>,
 
-    /// Use tensor parallelism across N GPUs (vLLM-style)
-    #[arg(long, short = 't', default_value = "1")]
-    pub tensor_parallel: u32,
-
-    /// Use pipeline parallelism across N nodes (vLLM-style)
-    #[arg(long, short = 'p', default_value = "1")]
-    pub pipeline_parallel: u32,
-
     /// Maximum tokens to generate
     #[arg(long, default_value = "500")]
     pub max_tokens: u32,
@@ -40,13 +32,22 @@ pub struct RunArgs {
     #[arg(long, default_value = "0.7")]
     pub temperature: f32,
 
-    /// Use distributed execution across network peers
+    /// Offload inference to network peers (P2P job distribution)
     #[arg(long, short = 'd')]
     pub distributed: bool,
+
+    /// Number of peers to use for pipeline parallelism (layer sharding)
+    /// Each peer handles different model layers. Requires --distributed.
+    #[arg(long, short = 'p', default_value = "1")]
+    pub pipeline_peers: u32,
 
     /// System prompt
     #[arg(long, short = 's')]
     pub system: Option<String>,
+
+    /// Show detailed execution info (which peer, latency, etc.)
+    #[arg(long, short = 'v')]
+    pub verbose: bool,
 }
 
 /// Arguments for the `pull` command
@@ -67,7 +68,7 @@ pub async fn run(args: RunArgs) -> anyhow::Result<()> {
 
     println!("\x1b[90mLoading model: {}\x1b[0m", model_name);
 
-    // Check if model exists
+    // Check if model exists locally (required even for distributed - we need the model spec)
     let models_dir = bootstrap::base_dir().join("models");
     let model_exists = std::fs::read_dir(&models_dir)
         .map(|entries| {
@@ -81,20 +82,48 @@ pub async fn run(args: RunArgs) -> anyhow::Result<()> {
         })
         .unwrap_or(false);
 
-    if !model_exists {
+    if !model_exists && !args.distributed {
         println!("\x1b[33mModel '{}' not found locally.\x1b[0m", model_name);
         println!("Run: \x1b[36mpeerclawd pull {}\x1b[0m", args.model);
+        println!("Or use: \x1b[36mpeerclawd run {} --distributed\x1b[0m to use network peers", args.model);
         return Ok(());
     }
 
-    // Show distributed config if set
-    if args.tensor_parallel > 1 || args.pipeline_parallel > 1 {
-        println!("\x1b[90mDistributed config: TP={}, PP={}\x1b[0m",
-            args.tensor_parallel, args.pipeline_parallel);
+    // Show execution mode
+    if args.distributed {
+        println!("\x1b[35mMode: Distributed P2P\x1b[0m");
+        if args.pipeline_peers > 1 {
+            println!("\x1b[90mPipeline peers: {} (layer sharding enabled)\x1b[0m", args.pipeline_peers);
+            println!("\x1b[33mNote: Pipeline parallelism splits model layers across peers.\x1b[0m");
+            println!("\x1b[33m      This is different from vLLM's tensor parallelism which\x1b[0m");
+            println!("\x1b[33m      splits weights within layers (requires fast interconnect).\x1b[0m");
+        }
+    } else {
+        println!("\x1b[36mMode: Local\x1b[0m");
     }
 
     // Create runtime
     let runtime = create_runtime().await?;
+
+    // Start P2P network if distributed mode
+    if args.distributed {
+        {
+            let mut network = runtime.network.write().await;
+            network.start().await?;
+        }
+        runtime.subscribe_to_job_topics().await?;
+
+        // Wait for peer connections
+        println!("\x1b[90mConnecting to P2P network...\x1b[0m");
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        let peer_count: usize = runtime.connected_peers_count().await;
+        if peer_count == 0 {
+            println!("\x1b[33mNo peers connected. Running locally instead.\x1b[0m");
+        } else {
+            println!("\x1b[32mConnected to {} peer(s)\x1b[0m", peer_count);
+        }
+    }
 
     // If prompt provided, run single inference
     if let Some(prompt) = args.prompt {
