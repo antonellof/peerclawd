@@ -94,6 +94,15 @@ enum SlashCommand {
     Compact,
     Doctor,
     Config,
+    // Tool commands
+    Tools,
+    ToolInfo(String),
+    ToolExec(String, String),
+    // Skill commands
+    Skills,
+    SkillInfo(String),
+    SkillCreate(String),
+    SkillScan,
     Quit,
 }
 
@@ -147,6 +156,35 @@ fn parse_slash_command(input: &str) -> Option<SlashCommand> {
         "compact" => Some(SlashCommand::Compact),
         "doctor" | "doc" => Some(SlashCommand::Doctor),
         "config" | "conf" => Some(SlashCommand::Config),
+        // Tool commands
+        "tools" => Some(SlashCommand::Tools),
+        "tool" => {
+            let parts: Vec<&str> = arg.unwrap_or("").splitn(2, ' ').collect();
+            match parts.first().map(|s| s.to_lowercase()).as_deref() {
+                Some("list") | None => Some(SlashCommand::Tools),
+                Some("info") => parts.get(1).map(|s| SlashCommand::ToolInfo(s.to_string())),
+                Some("exec") => {
+                    let rest = parts.get(1).unwrap_or(&"");
+                    let exec_parts: Vec<&str> = rest.splitn(2, ' ').collect();
+                    exec_parts.first().map(|name| {
+                        SlashCommand::ToolExec(name.to_string(), exec_parts.get(1).unwrap_or(&"").to_string())
+                    })
+                }
+                _ => Some(SlashCommand::Tools),
+            }
+        }
+        // Skill commands
+        "skills" => Some(SlashCommand::Skills),
+        "skill" => {
+            let parts: Vec<&str> = arg.unwrap_or("").splitn(2, ' ').collect();
+            match parts.first().map(|s| s.to_lowercase()).as_deref() {
+                Some("list") | None => Some(SlashCommand::Skills),
+                Some("info") => parts.get(1).map(|s| SlashCommand::SkillInfo(s.to_string())),
+                Some("create") => parts.get(1).map(|s| SlashCommand::SkillCreate(s.to_string())),
+                Some("scan") => Some(SlashCommand::SkillScan),
+                _ => Some(SlashCommand::Skills),
+            }
+        }
         "quit" | "exit" | "q" => Some(SlashCommand::Quit),
         _ => None,
     }
@@ -174,6 +212,17 @@ fn show_help() {
     println!("  \x1b[36m/max-tokens <n>\x1b[0m       Set max tokens per response");
     println!("  \x1b[36m/system <prompt>\x1b[0m      Set system prompt");
     println!("  \x1b[36m/stream on|off\x1b[0m        Toggle streaming output");
+    println!();
+    println!("  \x1b[1mTools (WASM)\x1b[0m");
+    println!("  \x1b[36m/tools\x1b[0m                List available tools");
+    println!("  \x1b[36m/tool info <name>\x1b[0m     Show tool details");
+    println!("  \x1b[36m/tool exec <name>\x1b[0m     Execute a tool");
+    println!();
+    println!("  \x1b[1mSkills (SKILL.md)\x1b[0m");
+    println!("  \x1b[36m/skills\x1b[0m               List installed skills");
+    println!("  \x1b[36m/skill info <name>\x1b[0m    Show skill details");
+    println!("  \x1b[36m/skill create <name>\x1b[0m  Create new skill template");
+    println!("  \x1b[36m/skill scan\x1b[0m           Reload skills from disk");
     println!();
     println!("  \x1b[1mNetwork & Economy\x1b[0m");
     println!("  \x1b[36m/cost\x1b[0m                 Show session token usage");
@@ -730,6 +779,242 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                     println!();
                     continue;
                 }
+                // Tool commands
+                SlashCommand::Tools => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let tools = rt.tools.list_tools().await;
+                            println!("\n\x1b[1m=== Available Tools ({}) ===\x1b[0m\n", tools.len());
+                            if tools.is_empty() {
+                                println!("  No tools found.");
+                                println!("  Tools directory: {}", bootstrap::base_dir().join("tools").display());
+                            } else {
+                                for tool in &tools {
+                                    let loc = match tool.location {
+                                        crate::tools::ToolLocation::Local => "\x1b[32mlocal\x1b[0m",
+                                        crate::tools::ToolLocation::Remote => "\x1b[36mremote\x1b[0m",
+                                        crate::tools::ToolLocation::Auto => "\x1b[33mauto\x1b[0m",
+                                    };
+                                    println!("  {:20} {} - {}", tool.name, loc, truncate(&tool.description, 40));
+                                }
+                            }
+                            println!();
+                            println!("  Use \x1b[36m/tool info <name>\x1b[0m for details");
+                            println!("  Use \x1b[36m/tool exec <name> <params>\x1b[0m to execute");
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mTool listing not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::ToolInfo(name) => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            if let Some(tool) = rt.tools.get(&name) {
+                                println!("\n\x1b[1m=== Tool: {} ===\x1b[0m\n", tool.name());
+                                println!("  Description: {}", tool.description());
+                                println!("  Approval:    {:?}", tool.approval_requirement());
+                                println!("  Domain:      {:?}", tool.domain());
+                                let schema = tool.parameters_schema();
+                                println!("\n  Parameters:");
+                                if let Some(props) = schema.get("properties").and_then(|p| p.as_object()) {
+                                    for (key, value) in props {
+                                        let desc = value.get("description").and_then(|d| d.as_str()).unwrap_or("");
+                                        let typ = value.get("type").and_then(|t| t.as_str()).unwrap_or("any");
+                                        println!("    {} ({}) - {}", key, typ, desc);
+                                    }
+                                } else {
+                                    println!("    (no parameters)");
+                                }
+                            } else {
+                                println!("\n  \x1b[33mTool '{}' not found\x1b[0m", name);
+                                println!("  Use \x1b[36m/tools\x1b[0m to see available tools");
+                            }
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mTool info not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::ToolExec(name, params) => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            if let Some(tool) = rt.tools.get(&name) {
+                                println!("\n  Executing tool: {}", name);
+                                let params_json: serde_json::Value = if params.is_empty() {
+                                    serde_json::json!({})
+                                } else {
+                                    serde_json::from_str(&params).unwrap_or_else(|_| serde_json::json!({"input": params}))
+                                };
+                                let peer_id = rt.local_peer_id.to_string();
+                                let ctx = crate::tools::ToolContext::local(peer_id);
+                                match tool.execute(params_json, &ctx).await {
+                                    Ok(output) => {
+                                        println!("  \x1b[32mSuccess\x1b[0m ({}ms)", output.duration_ms);
+                                        println!("  Result: {}", output.data);
+                                    }
+                                    Err(e) => {
+                                        println!("  \x1b[31mError:\x1b[0m {}", e);
+                                    }
+                                }
+                            } else {
+                                println!("\n  \x1b[33mTool '{}' not found\x1b[0m", name);
+                            }
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mTool execution not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                // Skill commands
+                SlashCommand::Skills => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            let skills = rt.skills.list_local().await;
+                            println!("\n\x1b[1m=== Available Skills ({}) ===\x1b[0m\n", skills.len());
+                            if skills.is_empty() {
+                                println!("  No skills found.");
+                                println!("  Skills directory: {}", bootstrap::base_dir().join("skills").display());
+                                println!("  Create a SKILL.md file to add a skill.");
+                            } else {
+                                for skill in &skills {
+                                    let status = if skill.is_available() { "\x1b[32m✓\x1b[0m" } else { "\x1b[31m✗\x1b[0m" };
+                                    println!("  {} {:20} {} (v{})",
+                                        status,
+                                        skill.name(),
+                                        truncate(skill.description(), 30),
+                                        skill.manifest.version
+                                    );
+                                }
+                            }
+                            println!();
+                            println!("  Use \x1b[36m/skill info <name>\x1b[0m for details");
+                            println!("  Use \x1b[36m/skill create <name>\x1b[0m to create new");
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mSkill listing not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::SkillInfo(name) => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            if let Some(skill) = rt.skills.get(&name).await {
+                                println!("\n\x1b[1m=== Skill: {} ===\x1b[0m\n", skill.name());
+                                println!("  Version:     {}", skill.manifest.version);
+                                println!("  Description: {}", skill.description());
+                                println!("  Trust:       {:?}", skill.trust);
+                                println!("  Available:   {}", skill.is_available());
+                                println!("  Hash:        {}", skill.hash);
+                                if let Some(author) = &skill.manifest.author {
+                                    println!("  Author:      {}", author);
+                                }
+                                if !skill.manifest.activation.keywords.is_empty() {
+                                    println!("\n  Keywords: {}", skill.manifest.activation.keywords.join(", "));
+                                }
+                                if !skill.manifest.activation.tags.is_empty() {
+                                    println!("  Tags:     {}", skill.manifest.activation.tags.join(", "));
+                                }
+                                println!("\n  Prompt Preview:");
+                                println!("  {:-<56}", "");
+                                let preview = truncate(skill.prompt(), 500);
+                                for line in preview.lines().take(10) {
+                                    println!("  {}", line);
+                                }
+                                if skill.prompt().len() > 500 {
+                                    println!("  ... (truncated)");
+                                }
+                            } else {
+                                println!("\n  \x1b[33mSkill '{}' not found\x1b[0m", name);
+                                println!("  Use \x1b[36m/skills\x1b[0m to see available skills");
+                            }
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mSkill info not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::SkillCreate(name) => {
+                    let skills_dir = bootstrap::base_dir().join("skills");
+                    let skill_path = skills_dir.join(format!("{}.md", &name));
+                    if skill_path.exists() {
+                        println!("\n  \x1b[33mSkill '{}' already exists at {}\x1b[0m", name, skill_path.display());
+                    } else {
+                        let template = format!(r#"---
+name: {}
+version: 1.0.0
+description: A custom skill
+author: Your Name
+activation:
+  keywords:
+    - {}
+  tags:
+    - custom
+requires:
+  bins: []
+  env: []
+sharing:
+  enabled: false
+  price: 0
+---
+
+# {}
+
+You are a helpful assistant with expertise in [your domain].
+
+When helping users:
+1. Be clear and concise
+2. Provide examples when helpful
+3. Ask clarifying questions if needed
+
+## Guidelines
+
+- Follow best practices
+- Be security-conscious
+- Cite sources when applicable
+"#, name, name, name.replace("-", " ").to_uppercase());
+                        if let Err(e) = std::fs::create_dir_all(&skills_dir) {
+                            println!("\n  \x1b[31mError creating skills dir: {}\x1b[0m", e);
+                        } else if let Err(e) = std::fs::write(&skill_path, template) {
+                            println!("\n  \x1b[31mError creating skill: {}\x1b[0m", e);
+                        } else {
+                            println!("\n  \x1b[32mCreated skill template:\x1b[0m {}", skill_path.display());
+                            println!("\n  Edit the file to customize, then run \x1b[36m/skill scan\x1b[0m");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
+                SlashCommand::SkillScan => {
+                    match &mode {
+                        ChatMode::Local { runtime: rt } => {
+                            println!("\n  Scanning skills directory...");
+                            match rt.skills.scan().await {
+                                Ok(count) => {
+                                    println!("  \x1b[32mLoaded {} skills\x1b[0m", count);
+                                }
+                                Err(e) => {
+                                    println!("  \x1b[31mError scanning skills: {}\x1b[0m", e);
+                                }
+                            }
+                        }
+                        ChatMode::Api { .. } => {
+                            println!("\n  \x1b[33mSkill scanning not available via API\x1b[0m\n");
+                        }
+                    }
+                    println!();
+                    continue;
+                }
                 SlashCommand::Quit => {
                     println!("\x1b[33mGoodbye!\x1b[0m");
                     break;
@@ -958,4 +1243,17 @@ fn build_prompt(system: &str, history: &[(String, String)], user_input: &str) ->
     prompt.push_str(&format!("User: {}\nAssistant:", user_input));
 
     prompt
+}
+
+fn truncate(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        // Find a safe character boundary
+        let mut end = max_len.saturating_sub(3);
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
+    }
 }

@@ -95,6 +95,7 @@ pub fn create_router(state: Arc<WebState>) -> Router {
     Router::new()
         // Dashboard routes
         .route("/", get(index))
+        .route("/chat", get(chat_page))
         .route("/api/status", get(api_status))
         .route("/api/peers", get(api_peers))
         .route("/api/jobs", get(api_jobs))
@@ -184,6 +185,10 @@ pub async fn start_server(
 
 async fn index() -> Html<&'static str> {
     Html(include_str!("dashboard.html"))
+}
+
+async fn chat_page() -> Html<&'static str> {
+    Html(include_str!("chat.html"))
 }
 
 #[derive(Serialize)]

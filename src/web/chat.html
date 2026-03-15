@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeerClaw'd Chat</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-chat: #1a1f26;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent: #58a6ff;
+            --accent-hover: #79b8ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --border: #30363d;
+            --code-bg: #161b22;
+            --user-bg: #1f6feb;
+            --assistant-bg: #21262d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span { color: var(--accent); }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .model-select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.375rem 0.75rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .model-select:hover {
+            border-color: var(--accent);
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        /* Main chat area */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 1rem;
+            overflow: hidden;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 0;
+            scroll-behavior: smooth;
+        }
+
+        /* Welcome screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .welcome-logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 500px;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .quick-action {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-action:hover {
+            border-color: var(--accent);
+            background: var(--bg-tertiary);
+        }
+
+        .quick-action-title {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .quick-action-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Messages */
+        .message {
+            display: flex;
+            gap: 1rem;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .message:last-child {
+            border-bottom: none;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .message-avatar.user {
+            background: var(--user-bg);
+        }
+
+        .message-avatar.assistant {
+            background: var(--success);
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-author {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .message-text {
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .message-text code {
+            background: var(--code-bg);
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 0.875em;
+        }
+
+        .message-text pre {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-text pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .message.error .message-text {
+            color: var(--danger);
+        }
+
+        .message.system .message-text {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 0;
+            color: var(--text-secondary);
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        /* Input area */
+        .input-area {
+            padding: 1rem 0 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .input-wrapper {
+            position: relative;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--accent);
+        }
+
+        .chat-textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            padding: 1rem;
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-family: inherit;
+            resize: none;
+            max-height: 200px;
+            outline: none;
+            line-height: 1.5;
+        }
+
+        .chat-textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .input-hints {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .input-hint {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .input-hint kbd {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.125rem 0.375rem;
+            font-family: inherit;
+            font-size: 0.7rem;
+        }
+
+        .send-btn {
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Slash command autocomplete */
+        .autocomplete-menu {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .autocomplete-menu.visible {
+            display: block;
+        }
+
+        .autocomplete-header {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .autocomplete-item {
+            padding: 0.625rem 0.75rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.15s;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: var(--bg-tertiary);
+        }
+
+        .autocomplete-item-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .autocomplete-cmd {
+            font-weight: 500;
+            color: var(--accent);
+        }
+
+        .autocomplete-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .autocomplete-shortcut {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Command output */
+        .command-output {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .chat-container {
+                padding: 0 0.5rem;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                padding: 0.5rem 1rem;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+                    <circle cx="12" cy="3" r="1.5" fill="currentColor"/>
+                    <circle cx="12" cy="21" r="1.5" fill="currentColor"/>
+                    <circle cx="3" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="21" cy="12" r="1.5" fill="currentColor"/>
+                </svg>
+                PeerClaw<span>'d</span>
+            </div>
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span id="peer-status">Connecting...</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <select class="model-select" id="model-select">
+                <option value="llama-3.2-3b">Llama 3.2 3B</option>
+                <option value="llama-3.2-1b">Llama 3.2 1B</option>
+                <option value="phi-3-mini">Phi-3 Mini</option>
+            </select>
+            <button class="icon-btn" id="settings-btn" title="Settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+            </button>
+            <button class="icon-btn" id="dashboard-btn" title="Dashboard">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="chat-container">
+        <div class="messages-container" id="messages-container">
+            <div class="welcome-screen" id="welcome-screen">
+                <div class="welcome-logo">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 3v6m0 6v6M3 12h6m6 0h6"/>
+                        <circle cx="12" cy="3" r="1.5" fill="var(--accent)"/>
+                        <circle cx="12" cy="21" r="1.5" fill="var(--accent)"/>
+                        <circle cx="3" cy="12" r="1.5" fill="var(--accent)"/>
+                        <circle cx="21" cy="12" r="1.5" fill="var(--accent)"/>
+                    </svg>
+                </div>
+                <h1 class="welcome-title">Welcome to PeerClaw'd</h1>
+                <p class="welcome-subtitle">
+                    Decentralized AI at your fingertips. Run models locally, connect to peers,
+                    and use powerful tools with slash commands.
+                </p>
+                <div class="quick-actions">
+                    <div class="quick-action" data-prompt="Hello! What can you help me with?">
+                        <div class="quick-action-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Start a conversation
+                        </div>
+                        <div class="quick-action-desc">Chat with your local AI assistant</div>
+                    </div>
+                    <div class="quick-action" data-cmd="/help">
+                        <div class="quick-action-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            View commands
+                        </div>
+                        <div class="quick-action-desc">See all available slash commands</div>
+                    </div>
+                    <div class="quick-action" data-cmd="/tools">
+                        <div class="quick-action-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                            </svg>
+                            Explore tools
+                        </div>
+                        <div class="quick-action-desc">Browse available WASM tools</div>
+                    </div>
+                    <div class="quick-action" data-cmd="/skills">
+                        <div class="quick-action-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                            Browse skills
+                        </div>
+                        <div class="quick-action-desc">View prompt-based skills</div>
+                    </div>
+                </div>
+            </div>
+            <div id="messages"></div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-wrapper">
+                <div class="autocomplete-menu" id="autocomplete-menu"></div>
+                <textarea
+                    class="chat-textarea"
+                    id="chat-input"
+                    placeholder="Type a message or / for commands..."
+                    rows="1"
+                ></textarea>
+                <div class="input-actions">
+                    <div class="input-hints">
+                        <span class="input-hint"><kbd>/</kbd> commands</span>
+                        <span class="input-hint"><kbd>Enter</kbd> send</span>
+                        <span class="input-hint"><kbd>Shift+Enter</kbd> newline</span>
+                    </div>
+                    <button class="send-btn" id="send-btn">
+                        Send
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        Powered by <a href="#">PeerClaw'd</a> - Decentralized P2P AI
+    </footer>
+
+    <script>
+        // Slash commands definition
+        const COMMANDS = [
+            // General
+            { cmd: '/help', desc: 'Show available commands', category: 'General' },
+            { cmd: '/status', desc: 'Show runtime status', category: 'General' },
+            { cmd: '/doctor', desc: 'Health check (models, network, wallet)', category: 'General' },
+            { cmd: '/clear', desc: 'Clear conversation history', category: 'General' },
+
+            // Model
+            { cmd: '/model', desc: 'Show or switch model', args: '[name]', category: 'Model' },
+            { cmd: '/temperature', desc: 'Set temperature (0.0-2.0)', args: '<value>', category: 'Model' },
+            { cmd: '/max-tokens', desc: 'Set max response tokens', args: '<value>', category: 'Model' },
+
+            // Tools
+            { cmd: '/tools', desc: 'List available tools', category: 'Tools' },
+            { cmd: '/tool', desc: 'Tool operations', args: '<list|info|exec> [name]', category: 'Tools' },
+
+            // Skills
+            { cmd: '/skills', desc: 'List installed skills', category: 'Skills' },
+            { cmd: '/skill', desc: 'Skill operations', args: '<list|info|create> [name]', category: 'Skills' },
+
+            // Network
+            { cmd: '/peers', desc: 'Show connected peers', category: 'Network' },
+            { cmd: '/balance', desc: 'Show wallet balance', category: 'Network' },
+            { cmd: '/jobs', desc: 'Show active jobs', category: 'Network' },
+            { cmd: '/distributed', desc: 'Toggle distributed mode', args: 'on|off', category: 'Network' },
+
+            // Session
+            { cmd: '/history', desc: 'Show conversation summary', category: 'Session' },
+            { cmd: '/export', desc: 'Export conversation to file', args: '<path>', category: 'Session' },
+            { cmd: '/cost', desc: 'Show session token usage', category: 'Session' },
+        ];
+
+        // State
+        let messages = [];
+        let isTyping = false;
+        let autocompleteIndex = -1;
+        let filteredCommands = [];
+        let sessionStats = { tokens: 0, requests: 0, startTime: Date.now() };
+        let settings = { temperature: 0.7, maxTokens: 500, distributed: false };
+
+        // DOM elements
+        const messagesContainer = document.getElementById('messages-container');
+        const messagesDiv = document.getElementById('messages');
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const modelSelect = document.getElementById('model-select');
+        const autocompleteMenu = document.getElementById('autocomplete-menu');
+        const peerStatus = document.getElementById('peer-status');
+
+        // Initialize
+        async function init() {
+            await fetchStatus();
+            setupEventListeners();
+            setInterval(fetchStatus, 5000);
+        }
+
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                peerStatus.textContent = `${data.connected_peers} peers`;
+            } catch (e) {
+                peerStatus.textContent = 'Offline';
+            }
+        }
+
+        function setupEventListeners() {
+            // Input handling
+            chatInput.addEventListener('input', handleInput);
+            chatInput.addEventListener('keydown', handleKeydown);
+            sendBtn.addEventListener('click', sendMessage);
+
+            // Quick actions
+            document.querySelectorAll('.quick-action').forEach(el => {
+                el.addEventListener('click', () => {
+                    if (el.dataset.prompt) {
+                        chatInput.value = el.dataset.prompt;
+                        sendMessage();
+                    } else if (el.dataset.cmd) {
+                        chatInput.value = el.dataset.cmd;
+                        sendMessage();
+                    }
+                });
+            });
+
+            // Auto-resize textarea
+            chatInput.addEventListener('input', () => {
+                chatInput.style.height = 'auto';
+                chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+            });
+
+            // Dashboard button
+            document.getElementById('dashboard-btn').addEventListener('click', () => {
+                window.location.href = '/';
+            });
+        }
+
+        function handleInput(e) {
+            const value = chatInput.value;
+
+            // Check for slash command
+            if (value.startsWith('/')) {
+                const search = value.slice(1).toLowerCase();
+                filteredCommands = COMMANDS.filter(c =>
+                    c.cmd.slice(1).toLowerCase().includes(search) ||
+                    c.desc.toLowerCase().includes(search)
+                );
+                showAutocomplete(filteredCommands);
+            } else {
+                hideAutocomplete();
+            }
+        }
+
+        function handleKeydown(e) {
+            // Autocomplete navigation
+            if (autocompleteMenu.classList.contains('visible')) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    autocompleteIndex = Math.min(autocompleteIndex + 1, filteredCommands.length - 1);
+                    updateAutocompleteSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+                    updateAutocompleteSelection();
+                } else if (e.key === 'Tab' || e.key === 'Enter') {
+                    if (autocompleteIndex >= 0 && filteredCommands[autocompleteIndex]) {
+                        e.preventDefault();
+                        selectCommand(filteredCommands[autocompleteIndex]);
+                        return;
+                    }
+                } else if (e.key === 'Escape') {
+                    hideAutocomplete();
+                    return;
+                }
+            }
+
+            // Send on Enter (without Shift)
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function showAutocomplete(commands) {
+            if (commands.length === 0) {
+                hideAutocomplete();
+                return;
+            }
+
+            // Group by category
+            const grouped = {};
+            commands.forEach(cmd => {
+                if (!grouped[cmd.category]) grouped[cmd.category] = [];
+                grouped[cmd.category].push(cmd);
+            });
+
+            let html = '';
+            for (const [category, cmds] of Object.entries(grouped)) {
+                html += `<div class="autocomplete-header">${category}</div>`;
+                cmds.forEach((cmd, i) => {
+                    const globalIndex = commands.indexOf(cmd);
+                    html += `
+                        <div class="autocomplete-item" data-index="${globalIndex}">
+                            <div class="autocomplete-item-left">
+                                <span class="autocomplete-cmd">${cmd.cmd}</span>
+                                ${cmd.args ? `<span class="autocomplete-desc">${cmd.args}</span>` : ''}
+                            </div>
+                            <span class="autocomplete-desc">${cmd.desc}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            autocompleteMenu.innerHTML = html;
+            autocompleteMenu.classList.add('visible');
+            autocompleteIndex = 0;
+            updateAutocompleteSelection();
+
+            // Click handlers
+            autocompleteMenu.querySelectorAll('.autocomplete-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    selectCommand(commands[parseInt(el.dataset.index)]);
+                });
+            });
+        }
+
+        function hideAutocomplete() {
+            autocompleteMenu.classList.remove('visible');
+            autocompleteIndex = -1;
+        }
+
+        function updateAutocompleteSelection() {
+            autocompleteMenu.querySelectorAll('.autocomplete-item').forEach((el, i) => {
+                el.classList.toggle('selected', i === autocompleteIndex);
+            });
+        }
+
+        function selectCommand(cmd) {
+            chatInput.value = cmd.cmd + (cmd.args ? ' ' : '');
+            chatInput.focus();
+            hideAutocomplete();
+        }
+
+        async function sendMessage() {
+            const content = chatInput.value.trim();
+            if (!content || isTyping) return;
+
+            hideAutocomplete();
+
+            // Hide welcome screen
+            if (welcomeScreen.style.display !== 'none') {
+                welcomeScreen.style.display = 'none';
+            }
+
+            // Check for slash command
+            if (content.startsWith('/')) {
+                await handleSlashCommand(content);
+                chatInput.value = '';
+                chatInput.style.height = 'auto';
+                return;
+            }
+
+            // Add user message
+            addMessage({ role: 'user', content });
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+
+            // Show typing indicator
+            isTyping = true;
+            sendBtn.disabled = true;
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: content,
+                        model: modelSelect.value,
+                        max_tokens: settings.maxTokens,
+                        temperature: settings.temperature,
+                    })
+                });
+
+                const data = await response.json();
+                hideTypingIndicator();
+
+                // Add assistant message
+                const meta = [];
+                if (data.tokens) meta.push(`${data.tokens} tokens`);
+                if (data.tokens_per_second) meta.push(`${data.tokens_per_second.toFixed(1)} tok/s`);
+                if (data.location) meta.push(data.location);
+                if (data.provider_peer_id) {
+                    const short = data.provider_peer_id.length > 16
+                        ? data.provider_peer_id.slice(0, 8) + '...'
+                        : data.provider_peer_id;
+                    meta.push(`by ${short}`);
+                }
+
+                addMessage({
+                    role: 'assistant',
+                    content: data.response,
+                    meta: meta.join(' | ')
+                });
+
+                // Update stats
+                sessionStats.tokens += data.tokens || 0;
+                sessionStats.requests++;
+
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage({
+                    role: 'error',
+                    content: `Error: ${error.message}`
+                });
+            }
+
+            isTyping = false;
+            sendBtn.disabled = false;
+        }
+
+        async function handleSlashCommand(input) {
+            const parts = input.slice(1).split(/\s+/);
+            const cmd = parts[0].toLowerCase();
+            const args = parts.slice(1);
+
+            // Add system message showing command
+            addMessage({ role: 'system', content: `Running: ${input}` });
+
+            let output = '';
+
+            try {
+                switch (cmd) {
+                    case 'help':
+                    case 'h':
+                    case '?':
+                        output = formatHelp();
+                        break;
+
+                    case 'clear':
+                    case 'c':
+                        messages = [];
+                        messagesDiv.innerHTML = '';
+                        output = 'Conversation cleared.';
+                        break;
+
+                    case 'status':
+                    case 's':
+                        const status = await fetch('/api/status').then(r => r.json());
+                        output = `Peer ID: ${status.peer_id.slice(0, 16)}...
+Connected peers: ${status.connected_peers}
+Balance: ${status.balance.toFixed(6)} PCLAW
+CPU: ${(status.cpu_usage * 100).toFixed(1)}%
+RAM: ${status.ram_used_mb}/${status.ram_total_mb} MB
+Active jobs: ${status.active_jobs}`;
+                        break;
+
+                    case 'model':
+                    case 'm':
+                        if (args[0]) {
+                            modelSelect.value = args[0];
+                            output = `Model set to: ${args[0]}`;
+                        } else {
+                            output = `Current model: ${modelSelect.value}`;
+                        }
+                        break;
+
+                    case 'temperature':
+                    case 'temp':
+                        if (args[0]) {
+                            settings.temperature = parseFloat(args[0]) || 0.7;
+                            output = `Temperature set to: ${settings.temperature}`;
+                        } else {
+                            output = `Current temperature: ${settings.temperature}`;
+                        }
+                        break;
+
+                    case 'max-tokens':
+                    case 'tokens':
+                        if (args[0]) {
+                            settings.maxTokens = parseInt(args[0]) || 500;
+                            output = `Max tokens set to: ${settings.maxTokens}`;
+                        } else {
+                            output = `Current max tokens: ${settings.maxTokens}`;
+                        }
+                        break;
+
+                    case 'tools':
+                    case 'tool':
+                        output = await handleToolCommand(args);
+                        break;
+
+                    case 'skills':
+                    case 'skill':
+                        output = await handleSkillCommand(args);
+                        break;
+
+                    case 'peers':
+                    case 'p':
+                        const peers = await fetch('/api/peers').then(r => r.json());
+                        if (peers.length === 0) {
+                            output = 'No peers connected.';
+                        } else {
+                            output = `Connected peers (${peers.length}):\n` +
+                                peers.slice(0, 10).map(p => `  • ${p.id.slice(0, 16)}...`).join('\n');
+                            if (peers.length > 10) output += `\n  ... and ${peers.length - 10} more`;
+                        }
+                        break;
+
+                    case 'balance':
+                    case 'bal':
+                    case 'wallet':
+                        const bal = await fetch('/api/status').then(r => r.json());
+                        output = `Wallet balance: ${bal.balance.toFixed(6)} PCLAW`;
+                        break;
+
+                    case 'jobs':
+                    case 'j':
+                        const jobs = await fetch('/api/jobs').then(r => r.json());
+                        if (jobs.length === 0) {
+                            output = 'No jobs.';
+                        } else {
+                            output = `Jobs (${jobs.length}):\n` +
+                                jobs.slice(0, 5).map(j =>
+                                    `  • ${j.id.slice(0, 12)}... - ${j.job_type} - ${j.status}`
+                                ).join('\n');
+                        }
+                        break;
+
+                    case 'distributed':
+                    case 'dist':
+                        if (args[0]) {
+                            settings.distributed = ['on', 'true', '1', 'yes'].includes(args[0].toLowerCase());
+                        } else {
+                            settings.distributed = !settings.distributed;
+                        }
+                        output = `Distributed mode: ${settings.distributed ? 'On' : 'Off'}`;
+                        break;
+
+                    case 'cost':
+                        const elapsed = Math.floor((Date.now() - sessionStats.startTime) / 1000);
+                        const mins = Math.floor(elapsed / 60);
+                        const secs = elapsed % 60;
+                        output = `Session stats:
+  Tokens used: ${sessionStats.tokens}
+  Requests: ${sessionStats.requests}
+  Session time: ${mins}m ${secs}s
+  Est. cost: ${(sessionStats.tokens / 1000).toFixed(4)} PCLAW`;
+                        break;
+
+                    case 'doctor':
+                        output = await runHealthCheck();
+                        break;
+
+                    default:
+                        output = `Unknown command: /${cmd}\nType /help for available commands.`;
+                }
+            } catch (error) {
+                output = `Error: ${error.message}`;
+            }
+
+            addMessage({ role: 'system', content: output, isOutput: true });
+        }
+
+        async function handleToolCommand(args) {
+            const subCmd = args[0] || 'list';
+
+            switch (subCmd) {
+                case 'list':
+                    // Fetch tools from API (would need endpoint)
+                    return `Available tools:
+  • calculator - Basic arithmetic operations
+  • http_fetch - Fetch URLs
+  • file_read - Read local files
+
+Use /tool info <name> for details.`;
+
+                case 'info':
+                    if (!args[1]) return 'Usage: /tool info <name>';
+                    return `Tool: ${args[1]}
+Description: Tool description here
+Parameters: {...}`;
+
+                case 'exec':
+                    if (!args[1]) return 'Usage: /tool exec <name> [params]';
+                    return `Executing tool ${args[1]}...`;
+
+                default:
+                    return 'Usage: /tool <list|info|exec> [name]';
+            }
+        }
+
+        async function handleSkillCommand(args) {
+            const subCmd = args[0] || 'list';
+
+            switch (subCmd) {
+                case 'list':
+                    return `Installed skills:
+  • code-review (v1.0.0) - Code review assistant
+  • writing (v1.0.0) - Writing helper
+
+Use /skill info <name> for details.`;
+
+                case 'info':
+                    if (!args[1]) return 'Usage: /skill info <name>';
+                    return `Skill: ${args[1]}
+Version: 1.0.0
+Description: Skill description here`;
+
+                case 'create':
+                    if (!args[1]) return 'Usage: /skill create <name>';
+                    return `Created skill template: ${args[1]}
+Edit the file to customize, then run /skill scan`;
+
+                default:
+                    return 'Usage: /skill <list|info|create> [name]';
+            }
+        }
+
+        async function runHealthCheck() {
+            const status = await fetch('/api/status').then(r => r.json());
+            const checks = [];
+
+            // Model check
+            checks.push(status.active_inference > 0 || status.completed_jobs > 0
+                ? '✓ Models: Available'
+                : '✗ Models: No models found - run "peerclawd models download llama-3.2-1b"');
+
+            // Network check
+            checks.push(status.connected_peers > 0
+                ? `✓ Network: ${status.connected_peers} peers connected`
+                : '! Network: No peers (standalone mode)');
+
+            // Wallet check
+            checks.push(status.balance > 0
+                ? `✓ Wallet: ${status.balance.toFixed(2)} PCLAW`
+                : '! Wallet: Empty');
+
+            return 'Health Check:\n' + checks.join('\n');
+        }
+
+        function formatHelp() {
+            let help = '=== PeerClaw\'d Chat Commands ===\n\n';
+
+            const categories = {};
+            COMMANDS.forEach(cmd => {
+                if (!categories[cmd.category]) categories[cmd.category] = [];
+                categories[cmd.category].push(cmd);
+            });
+
+            for (const [cat, cmds] of Object.entries(categories)) {
+                help += `${cat}:\n`;
+                cmds.forEach(c => {
+                    const cmdStr = c.cmd + (c.args ? ' ' + c.args : '');
+                    help += `  ${cmdStr.padEnd(24)} ${c.desc}\n`;
+                });
+                help += '\n';
+            }
+
+            return help.trim();
+        }
+
+        function addMessage({ role, content, meta, isOutput }) {
+            messages.push({ role, content, meta });
+
+            const msgEl = document.createElement('div');
+            msgEl.className = `message ${role}`;
+
+            if (role === 'system') {
+                msgEl.innerHTML = isOutput
+                    ? `<div class="message-content"><div class="command-output">${escapeHtml(content)}</div></div>`
+                    : `<div class="message-content"><div class="message-text">${escapeHtml(content)}</div></div>`;
+            } else {
+                const avatar = role === 'user' ? 'U' : role === 'error' ? '!' : 'A';
+                const author = role === 'user' ? 'You' : role === 'error' ? 'Error' : 'Assistant';
+
+                msgEl.innerHTML = `
+                    <div class="message-avatar ${role}">${avatar}</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author">${author}</span>
+                            ${meta ? `<span class="message-meta">${meta}</span>` : ''}
+                        </div>
+                        <div class="message-text">${formatMessage(content)}</div>
+                    </div>
+                `;
+            }
+
+            messagesDiv.appendChild(msgEl);
+            scrollToBottom();
+        }
+
+        function formatMessage(content) {
+            // Basic markdown-like formatting
+            let html = escapeHtml(content);
+
+            // Code blocks
+            html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Bold
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+            // Links
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+            return html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            indicator.id = 'typing-indicator';
+            indicator.innerHTML = `
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <span>Thinking...</span>
+            `;
+            messagesDiv.appendChild(indicator);
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
