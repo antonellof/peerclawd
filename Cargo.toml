@@ -63,6 +63,10 @@ sysinfo = "0.31"
 # Database
 redb = "2"
 
+# Vector database
+vectx = { git = "https://github.com/antonellof/vectX.git" }
+parking_lot = "0.12"
+
 # WASM sandbox
 wasmtime = { version = "28", features = ["component-model"] }
 wasmtime-wasi = "28"

@@ -12,6 +12,7 @@ pub mod skill;
 pub mod start;
 pub mod test;
 pub mod tool;
+pub mod vector;
 pub mod wallet;
 
 use clap::{Parser, Subcommand};
@@ -96,6 +97,10 @@ pub enum Command {
         #[command(subcommand)]
         cmd: skill::SkillCommand,
     },
+
+    /// Vector database operations (vectX)
+    #[command(visible_alias = "vec")]
+    Vector(vector::VectorArgs),
 
     /// Distributed job submission
     Job(job::JobArgs),

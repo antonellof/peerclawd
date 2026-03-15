@@ -82,6 +82,9 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Skill { cmd }) => {
             peerclaw::cli::skill::run(cmd).await?;
         }
+        Some(Command::Vector(args)) => {
+            peerclaw::cli::vector::run(args).await?;
+        }
         Some(Command::Job(args)) => {
             peerclaw::cli::job::run(args).await?;
         }
