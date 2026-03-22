@@ -53,6 +53,10 @@ pub struct ServeArgs {
     /// Base price per token in μPCLAW (default: 100)
     #[arg(long, default_value = "100")]
     pub price_per_token: u64,
+
+    /// Load and run an agent from a TOML spec file
+    #[arg(long, value_name = "PATH")]
+    pub agent: Option<std::path::PathBuf>,
 }
 
 pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
@@ -153,6 +157,60 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
             }
         });
         tracing::info!("Web UI available at http://{}", config.web.listen_addr);
+    }
+
+    // Load agent if specified
+    if let Some(agent_path) = &args.agent {
+        if !agent_path.exists() {
+            tracing::error!("Agent spec not found: {}", agent_path.display());
+        } else {
+            match std::fs::read_to_string(agent_path) {
+                Ok(spec_content) => {
+                    let spec: toml::Value = toml::from_str(&spec_content)
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Failed to parse agent spec: {}", e);
+                            toml::Value::Table(Default::default())
+                        });
+
+                    let agent_name = spec
+                        .get("agent")
+                        .and_then(|a| a.get("name"))
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("unnamed");
+
+                    let model = spec
+                        .get("model")
+                        .and_then(|m| m.get("name"))
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("llama-3.2-3b");
+
+                    let agent_id = format!(
+                        "agent_{}",
+                        &uuid::Uuid::new_v4().to_string().replace('-', "")[..12]
+                    );
+
+                    // Store agent state in database
+                    let agent_state = serde_json::json!({
+                        "id": agent_id,
+                        "name": agent_name,
+                        "model": model,
+                        "status": "running",
+                        "spec_path": agent_path.display().to_string(),
+                        "started_at": chrono::Utc::now().to_rfc3339(),
+                    });
+
+                    if let Ok(db) = Database::open(&config.database.path) {
+                        let _ = db.store_agent(&agent_id, &agent_state);
+                    }
+
+                    tracing::info!(
+                        "Agent '{}' loaded (model: {}, id: {})",
+                        agent_name, model, agent_id
+                    );
+                }
+                Err(e) => tracing::error!("Failed to read agent spec: {}", e),
+            }
+        }
     }
 
     // Main loop
