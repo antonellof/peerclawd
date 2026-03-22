@@ -1,0 +1,40 @@
+# Research Assistant Agent
+# Searches the web, reads documents, and summarizes findings.
+#
+# Deploy: peerclaw agent run examples/agents/researcher.toml
+
+[agent]
+name = "ResearchBot"
+description = "Autonomous research assistant that searches, reads, and synthesizes information"
+version = "1.0.0"
+
+[model]
+name = "llama-3.2-3b"
+max_tokens = 2048
+temperature = 0.3
+system_prompt = """You are a meticulous research assistant. When given a topic:
+1. Break it into sub-questions
+2. Search for relevant information using available tools
+3. Synthesize findings into a clear, structured summary
+4. Cite sources when possible
+Always be thorough but concise."""
+
+[capabilities]
+web_access = true
+storage = true
+vector_memory = true
+
+[budget]
+per_request = 0.5
+per_hour = 10.0
+total = 100.0
+
+[tools]
+builtin = ["web_search", "web_fetch", "read_file", "write_file"]
+
+[memory]
+collection = "research_memory"
+embedding_model = "default"
+
+[channels]
+repl = true

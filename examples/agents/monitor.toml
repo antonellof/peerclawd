@@ -1,0 +1,51 @@
+# Network Monitor Agent
+# Watches P2P network health, alerts on issues, logs statistics.
+#
+# Deploy: peerclaw agent run examples/agents/monitor.toml
+
+[agent]
+name = "NetWatch"
+description = "Autonomous network monitoring agent with periodic health checks"
+version = "1.0.0"
+
+[model]
+name = "llama-3.2-1b"
+max_tokens = 512
+temperature = 0.1
+system_prompt = """You are a network monitoring agent. Your job is to:
+- Monitor peer connectivity and report disconnections
+- Track job marketplace activity (bids, completions, failures)
+- Alert when resource usage exceeds thresholds
+- Maintain a daily health log
+Be concise and factual in your reports."""
+
+[capabilities]
+web_access = false
+storage = true
+vector_memory = true
+
+[budget]
+per_request = 0.1
+per_hour = 2.0
+total = 50.0
+
+[tools]
+builtin = ["read_file", "write_file", "p2p_status", "p2p_peers", "job_list"]
+
+[memory]
+collection = "network_logs"
+embedding_model = "default"
+
+[routines]
+# Check network health every 5 minutes
+[[routines.cron]]
+schedule = "*/5 * * * *"
+task = "Check network health: count connected peers, active jobs, resource usage. Log to network_logs."
+
+# Daily summary at midnight
+[[routines.cron]]
+schedule = "0 0 * * *"
+task = "Generate daily network health summary from today's logs. Write to file."
+
+[channels]
+webhook = { port = 8090 }

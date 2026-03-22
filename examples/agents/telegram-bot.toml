@@ -1,0 +1,37 @@
+# Telegram Bot Agent
+# Responds to messages in Telegram chats with AI assistance.
+#
+# Setup:
+#   1. Create a bot via @BotFather on Telegram
+#   2. Set TELEGRAM_BOT_TOKEN in ~/.peerclaw/.env
+#   3. Deploy: peerclaw agent run examples/agents/telegram-bot.toml
+
+[agent]
+name = "PeerClawBot"
+description = "Telegram bot powered by local AI inference"
+version = "1.0.0"
+
+[model]
+name = "llama-3.2-3b"
+max_tokens = 1024
+temperature = 0.7
+system_prompt = """You are a friendly and helpful AI assistant available on Telegram.
+Keep responses concise since this is a chat platform.
+Use markdown formatting when helpful.
+If asked about PeerClaw, explain it's a decentralized P2P AI network."""
+
+[capabilities]
+web_access = true
+storage = true
+
+[budget]
+per_request = 0.5
+per_hour = 5.0
+per_day = 50.0
+total = 500.0
+
+[tools]
+builtin = ["web_search", "web_fetch", "time"]
+
+[channels]
+telegram = { bot_token_env = "TELEGRAM_BOT_TOKEN" }

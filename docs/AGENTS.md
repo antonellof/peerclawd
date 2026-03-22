@@ -401,6 +401,48 @@ Send a message to data-collector: "Fetch latest arxiv papers on LLMs"
 Submit job to network: inference task with llama-3.3-70b, budget 5 PCLAW
 ```
 
+## Example Agents
+
+Ready-to-use agent configurations in `examples/agents/`:
+
+| Agent | File | Purpose |
+|-------|------|---------|
+| **ResearchBot** | `researcher.toml` | Web search, document reading, summarization with vector memory |
+| **CodeBot** | `coder.toml` | Code reading, patching, shell testing with restricted commands |
+| **NetWatch** | `monitor.toml` | Automated network health checks on cron schedule, daily reports |
+| **PeerClawBot** | `telegram-bot.toml` | Telegram bot with web search, powered by local inference |
+| **DataBot** | `data-analyst.toml` | Data processing with Python/SQLite, generates insights and reports |
+
+### Quick Start
+
+```bash
+# Deploy a research assistant
+peerclaw agent run examples/agents/researcher.toml
+
+# Deploy a Telegram bot (set token first)
+echo 'TELEGRAM_BOT_TOKEN=your_token_here' >> ~/.peerclaw/.env
+peerclaw agent run examples/agents/telegram-bot.toml
+
+# Deploy a network monitor with scheduled checks
+peerclaw agent run examples/agents/monitor.toml
+
+# Check running agents
+peerclaw agent list
+
+# View agent details
+peerclaw agent info <agent-id>
+```
+
+### Creating Your Own Agent
+
+1. Copy an example: `cp examples/agents/researcher.toml my-agent.toml`
+2. Customize the `[model]` section (model name, temperature, system prompt)
+3. Set `[capabilities]` based on what the agent needs
+4. Configure `[tools]` with builtin tools and optional WASM tools
+5. Add `[channels]` for how users interact (REPL, webhook, Telegram, etc.)
+6. Optionally add `[routines]` for scheduled background tasks
+7. Deploy: `peerclaw agent run my-agent.toml`
+
 ---
 
-*v0.2 — March 2026*
+*v0.3 — March 2026*

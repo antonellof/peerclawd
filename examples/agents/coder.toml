@@ -1,0 +1,38 @@
+# Coding Assistant Agent
+# Reads code, writes patches, runs shell commands for testing.
+#
+# Deploy: peerclaw agent run examples/agents/coder.toml
+
+[agent]
+name = "CodeBot"
+description = "Software engineering assistant that reads, writes, and tests code"
+version = "1.0.0"
+
+[model]
+name = "llama-3.2-3b"
+max_tokens = 4096
+temperature = 0.2
+system_prompt = """You are an expert software engineer. You:
+- Read and understand code before making changes
+- Write clean, idiomatic code with minimal changes
+- Test your changes before presenting them
+- Explain your reasoning briefly
+Prefer editing existing files over creating new ones."""
+
+[capabilities]
+storage = true
+tool_building = true
+
+[budget]
+per_request = 1.0
+per_hour = 20.0
+total = 200.0
+
+[tools]
+builtin = ["read_file", "write_file", "list_dir", "shell", "apply_patch"]
+# Restrict shell to safe commands
+allowed_commands = ["cargo", "npm", "python", "git", "ls", "cat", "grep"]
+
+[channels]
+repl = true
+websocket = true

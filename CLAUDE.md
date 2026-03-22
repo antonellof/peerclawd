@@ -45,15 +45,16 @@ One statically-linked binary operates in multiple modes based on flags/subcomman
 **CLI Structure:**
 - `peerclaw serve` - Start peer node (with `--gpu`, `--storage`, `--web` flags)
 - `peerclaw run <model>` - Ollama-style interactive chat
-- `peerclaw chat` - Full-featured chat with slash commands
+- `peerclaw chat` - Full-featured chat with slash commands (rustyline + tab completion)
 - `peerclaw models list|download` - Model management
-- `peerclaw agent run|list|logs|stop` - Agent management
-- `peerclaw network status|peers|discover` - Network operations
+- `peerclaw agent run|list|info|logs|stop` - Agent management
+- `peerclaw network status|peers|discover|identity` - Network operations
 - `peerclaw wallet create|balance|send|history` - Token wallet
-- `peerclaw tool build|install|list` - WASM tool management
+- `peerclaw tool list|info|exec` - WASM tool management
 - `peerclaw skill list|install|search` - Skill management
 - `peerclaw vector create|insert|search` - Vector database
-- `peerclaw job submit|status|list` - Job marketplace
+- `peerclaw job inference|fetch|list|history` - Job marketplace
+- `peerclaw doctor` - Run diagnostics on all subsystems
 
 ### Core Modules
 
@@ -71,7 +72,8 @@ One statically-linked binary operates in multiple modes based on flags/subcomman
 | Messaging | `src/messaging/` | Multi-platform channels |
 | MCP | `src/mcp/` | Model Context Protocol client |
 | Executor | `src/executor/` | Local/remote task routing |
-| Web | `src/web/` | Dashboard, OpenAI-compatible API |
+| Swarm | `src/swarm/` | Agent visualization, topology, event timeline |
+| Web | `src/web/` | Dashboard, OpenAI-compatible API, swarm visualization |
 
 ### Key Dependencies
 
@@ -134,14 +136,28 @@ The `ironclaw/` directory contains additional tools and channel adapters:
 - [x] MCP integration
 - [x] Multi-platform messaging
 
-### Planned (v0.3)
+### Implemented (v0.3)
+- [x] Swarm agent visualization (D3.js topology, timeline, agent cards)
+- [x] Web server wired to node (was TODO stub)
+- [x] WASM sandbox execution with host bindings (log, time, random, I/O)
+- [x] Ed25519 signatures on job network messages
+- [x] CLI agent management (run, list, info, logs, stop)
+- [x] CLI network commands (status, peers, discover, identity)
+- [x] `peerclaw doctor` diagnostic command (10 subsystem checks)
+- [x] Rustyline chat CLI (tab completion, history, arrow keys)
+- [x] Zero clippy warnings, comprehensive code cleanup
+
+### Planned (v0.4)
 - [ ] Distributed inference (pipeline parallelism)
 - [ ] Dynamic WASM tool building
 - [ ] Multi-agent collaboration
 - [ ] Reputation system
+- [ ] Provider failover/circuit breaker
+- [ ] Context compaction for long conversations
 
 ### Future (v1.0)
 - [ ] On-chain settlement
 - [ ] Public tool registry
 - [ ] Governance
 - [ ] Firecracker microVM isolation
+- [ ] Docker sandbox execution

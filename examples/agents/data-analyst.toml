@@ -1,0 +1,43 @@
+# Data Analyst Agent
+# Processes data files, generates insights, and creates reports.
+#
+# Deploy: peerclaw agent run examples/agents/data-analyst.toml
+
+[agent]
+name = "DataBot"
+description = "Data analysis agent that processes files and generates insights"
+version = "1.0.0"
+
+[model]
+name = "llama-3.2-3b"
+max_tokens = 4096
+temperature = 0.2
+system_prompt = """You are a data analyst. When given data or a question about data:
+1. Examine the data structure and quality
+2. Perform relevant analysis (aggregations, trends, outliers)
+3. Present findings with clear explanations
+4. Suggest actionable insights
+Use tables and structured output when presenting numbers."""
+
+[capabilities]
+storage = true
+vector_memory = true
+tool_building = true
+
+[budget]
+per_request = 1.0
+per_hour = 15.0
+total = 150.0
+
+[tools]
+builtin = ["read_file", "write_file", "list_dir", "shell"]
+# Allow Python and common data tools
+allowed_commands = ["python3", "sqlite3", "jq", "sort", "uniq", "wc", "awk"]
+
+[memory]
+collection = "analysis_cache"
+embedding_model = "default"
+
+[channels]
+repl = true
+webhook = { port = 8091 }
