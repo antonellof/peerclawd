@@ -1,5 +1,6 @@
 //! P2P network integration for job broadcasting.
 
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use libp2p::PeerId;
 
@@ -37,17 +38,54 @@ pub struct JobRequestMessage {
     pub request: JobRequest,
     /// Requester's peer ID
     pub requester_peer_id: String,
-    /// Signature from requester (for verification)
+    /// Ed25519 signature over the canonical message bytes
     pub signature: Vec<u8>,
 }
 
 impl JobRequestMessage {
+    /// Create a new unsigned request message.
     pub fn new(request: JobRequest, peer_id: &PeerId) -> Self {
         Self {
             request,
             requester_peer_id: peer_id.to_string(),
-            signature: vec![], // TODO: Sign with Ed25519
+            signature: vec![],
         }
+    }
+
+    /// Create a signed request message.
+    pub fn new_signed(request: JobRequest, peer_id: &PeerId, signing_key: &SigningKey) -> Self {
+        let mut msg = Self::new(request, peer_id);
+        msg.sign(signing_key);
+        msg
+    }
+
+    /// Sign this message with the given key.
+    pub fn sign(&mut self, signing_key: &SigningKey) {
+        let payload = self.signable_bytes();
+        let sig: Signature = signing_key.sign(&payload);
+        self.signature = sig.to_bytes().to_vec();
+    }
+
+    /// Verify the signature against a verifying key.
+    pub fn verify(&self, verifying_key: &VerifyingKey) -> bool {
+        if self.signature.len() != 64 {
+            return false;
+        }
+        let Ok(sig) = Signature::from_slice(&self.signature) else {
+            return false;
+        };
+        let payload = self.signable_bytes();
+        verifying_key.verify(&payload, &sig).is_ok()
+    }
+
+    /// Canonical bytes used for signing (excludes the signature field).
+    fn signable_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"job_request:");
+        buf.extend_from_slice(self.requester_peer_id.as_bytes());
+        buf.extend_from_slice(b":");
+        buf.extend_from_slice(self.request.id.0.as_bytes());
+        buf
     }
 }
 
@@ -58,17 +96,53 @@ pub struct JobBidMessage {
     pub bid: JobBid,
     /// Bidder's peer ID
     pub bidder_peer_id: String,
-    /// Signature from bidder
+    /// Ed25519 signature over the canonical message bytes
     pub signature: Vec<u8>,
 }
 
 impl JobBidMessage {
+    /// Create a new unsigned bid message.
     pub fn new(bid: JobBid, peer_id: &PeerId) -> Self {
         Self {
             bid,
             bidder_peer_id: peer_id.to_string(),
-            signature: vec![], // TODO: Sign with Ed25519
+            signature: vec![],
         }
+    }
+
+    /// Create a signed bid message.
+    pub fn new_signed(bid: JobBid, peer_id: &PeerId, signing_key: &SigningKey) -> Self {
+        let mut msg = Self::new(bid, peer_id);
+        msg.sign(signing_key);
+        msg
+    }
+
+    /// Sign this message.
+    pub fn sign(&mut self, signing_key: &SigningKey) {
+        let payload = self.signable_bytes();
+        let sig: Signature = signing_key.sign(&payload);
+        self.signature = sig.to_bytes().to_vec();
+    }
+
+    /// Verify the signature.
+    pub fn verify(&self, verifying_key: &VerifyingKey) -> bool {
+        if self.signature.len() != 64 {
+            return false;
+        }
+        let Ok(sig) = Signature::from_slice(&self.signature) else {
+            return false;
+        };
+        let payload = self.signable_bytes();
+        verifying_key.verify(&payload, &sig).is_ok()
+    }
+
+    fn signable_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"job_bid:");
+        buf.extend_from_slice(self.bidder_peer_id.as_bytes());
+        buf.extend_from_slice(b":");
+        buf.extend_from_slice(self.bid.job_id.0.as_bytes());
+        buf
     }
 }
 
@@ -143,6 +217,8 @@ mod tests {
     use super::*;
     use crate::job::{ResourceType, JobRequirements};
     use crate::wallet::to_micro;
+    use ed25519_dalek::SigningKey;
+    use rand::rngs::OsRng;
 
     #[test]
     fn test_message_serialization() {
@@ -170,5 +246,55 @@ mod tests {
             }
             _ => panic!("Wrong message type"),
         }
+    }
+
+    #[test]
+    fn test_request_sign_verify() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+
+        let request = JobRequest::new(
+            ResourceType::Inference {
+                model: "llama-7b".into(),
+                tokens: 1000,
+            },
+            to_micro(5.0),
+            300,
+        );
+
+        let peer_id = libp2p::PeerId::random();
+        let msg = JobRequestMessage::new_signed(request, &peer_id, &signing_key);
+
+        assert!(!msg.signature.is_empty());
+        assert_eq!(msg.signature.len(), 64);
+        assert!(msg.verify(&verifying_key));
+
+        // Verify fails with wrong key
+        let wrong_key = SigningKey::generate(&mut OsRng);
+        assert!(!msg.verify(&wrong_key.verifying_key()));
+    }
+
+    #[test]
+    fn test_bid_sign_verify() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+
+        let bid = JobBid::new(
+            crate::job::JobId("job-123".to_string()),
+            "bidder-peer".to_string(),
+            to_micro(3.0),
+            120,
+            300,
+        );
+
+        let peer_id = libp2p::PeerId::random();
+        let msg = JobBidMessage::new_signed(bid, &peer_id, &signing_key);
+
+        assert!(msg.verify(&verifying_key));
+
+        // Tampered message fails verification
+        let mut tampered = msg.clone();
+        tampered.bidder_peer_id = "attacker".to_string();
+        assert!(!tampered.verify(&verifying_key));
     }
 }
