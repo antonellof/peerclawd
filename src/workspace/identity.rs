@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{Result, WorkspaceError};
+use super::Result;
 
 /// Identity configuration
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -103,8 +103,8 @@ impl Identity {
             }
 
             // Section header
-            if line.starts_with("## ") {
-                current_section = line[3..].trim().to_lowercase().replace(' ', "_");
+            if let Some(stripped) = line.strip_prefix("## ") {
+                current_section = stripped.trim().to_lowercase().replace(' ', "_");
                 continue;
             }
 
@@ -272,14 +272,14 @@ impl Soul {
             }
 
             // Section header
-            if line.starts_with("## ") {
-                current_section = line[3..].trim().to_lowercase().replace(' ', "_");
+            if let Some(stripped) = line.strip_prefix("## ") {
+                current_section = stripped.trim().to_lowercase().replace(' ', "_");
                 continue;
             }
 
             // Purpose line
             if line.starts_with("purpose:") || line.starts_with("Purpose:") {
-                soul.purpose = line.splitn(2, ':').nth(1).unwrap_or("").trim().to_string();
+                soul.purpose = line.split_once(':').map(|x| x.1).unwrap_or("").trim().to_string();
                 continue;
             }
 

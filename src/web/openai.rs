@@ -226,7 +226,7 @@ fn unix_timestamp() -> u64 {
 }
 
 fn generate_completion_id() -> String {
-    format!("chatcmpl-{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..24].to_string())
+    format!("chatcmpl-{}", &uuid::Uuid::new_v4().to_string().replace("-", "")[..24])
 }
 
 /// Convert OpenAI messages to a prompt string.
@@ -467,7 +467,7 @@ pub async fn list_models(State(_state): State<Arc<WebState>>) -> Json<ModelsResp
                 .filter(|e| {
                     e.path()
                         .extension()
-                        .map_or(false, |ext| ext == "gguf")
+                        .is_some_and(|ext| ext == "gguf")
                 })
                 .map(|e| {
                     let file_name = e.file_name().to_string_lossy().to_string();

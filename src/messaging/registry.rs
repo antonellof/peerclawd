@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 
 use super::{
     Channel, ChannelConfig, ChannelError, ChannelId, ChannelMessage,
-    MessageDirection, MessageId, Platform,
+    MessageId, Platform,
 };
 
 /// Handle to a registered channel.
@@ -70,6 +70,9 @@ pub struct ChannelStats {
     pub last_message: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Message handler callback type.
+type MessageHandler = Box<dyn Fn(ChannelMessage) + Send + Sync>;
+
 /// Registry for managing multiple channels.
 pub struct ChannelRegistry {
     /// Local peer ID.
@@ -79,7 +82,7 @@ pub struct ChannelRegistry {
     /// Channel configurations (pending).
     configs: RwLock<HashMap<String, ChannelConfig>>,
     /// Global message callback.
-    message_handler: RwLock<Option<Box<dyn Fn(ChannelMessage) + Send + Sync>>>,
+    message_handler: RwLock<Option<MessageHandler>>,
     /// Network channel discovery.
     network_channels: RwLock<HashMap<String, NetworkChannelInfo>>,
 }
@@ -267,10 +270,12 @@ impl ChannelRegistry {
 }
 
 /// Builder for channel configurations.
+#[allow(dead_code)]
 pub struct ChannelConfigBuilder {
     config: ChannelConfig,
 }
 
+#[allow(dead_code)]
 impl ChannelConfigBuilder {
     /// Create a new builder for the given platform.
     pub fn new(platform: Platform, name: &str) -> Self {

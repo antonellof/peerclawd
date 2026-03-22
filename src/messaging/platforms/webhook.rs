@@ -252,6 +252,7 @@ impl Channel for WebhookChannel {
 
 /// Incoming webhook payload (generic format).
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct WebhookPayload {
     /// Message content.
     pub message: String,
@@ -267,6 +268,7 @@ pub struct WebhookPayload {
 
 /// Outgoing webhook response.
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct WebhookResponse {
     /// Response message ID.
     pub message_id: String,

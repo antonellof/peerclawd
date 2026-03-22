@@ -4,25 +4,23 @@
 //! and P2P network to enable distributed task execution.
 
 use std::sync::Arc;
-use std::time::Duration;
-
 use libp2p::PeerId;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::db::Database;
 use crate::executor::{
-    ExecutorConfig, MonitorConfig, ResourceMonitor, RouterConfig, TaskExecutor,
+    MonitorConfig, ResourceMonitor, RouterConfig, TaskExecutor,
 };
-use crate::executor::remote::{JobProvider, RemoteExecutor, RemoteExecutorConfig};
-use crate::executor::task::{ExecutionTask, InferenceTask, TaskResult, WebFetchTask, TaskData};
+use crate::executor::remote::JobProvider;
+use crate::executor::task::{ExecutionTask, InferenceTask, TaskResult, WebFetchTask};
 use crate::identity::NodeIdentity;
 use crate::inference::{
     InferenceConfig, InferenceEngine, ModelDistributor,
-    BatchAggregator, BatchConfig, BatchProcessor, BatchResponse, BatchError, BatchStats,
+    BatchAggregator, BatchConfig, BatchResponse, BatchError, BatchStats,
 };
 use crate::job::{JobManager, PricingStrategy, network as job_network};
-use crate::p2p::{Network, NetworkEvent};
+use crate::p2p::Network;
 use crate::skills::SkillRegistry;
 use crate::tools::ToolRegistry;
 use crate::wallet::{Wallet, WalletConfig};
@@ -59,6 +57,7 @@ pub struct Runtime {
     pub config: Config,
 }
 
+#[allow(clippy::arc_with_non_send_sync)]
 impl Runtime {
     /// Create a new runtime with all subsystems initialized.
     pub async fn new(
@@ -66,7 +65,7 @@ impl Runtime {
         database: Database,
         config: Config,
     ) -> anyhow::Result<Self> {
-        let local_peer_id = *identity.peer_id();
+        let _local_peer_id = *identity.peer_id();
         let database = Arc::new(database);
 
         // Create wallet
@@ -80,7 +79,7 @@ impl Runtime {
         wallet.credit(crate::wallet::to_micro(1000.0), "initial_balance").await?;
 
         // Create job manager
-        let local_peer_id = identity.peer_id().clone();
+        let local_peer_id = *identity.peer_id();
         let local_peer_id_str = local_peer_id.to_string();
         let job_manager = Arc::new(RwLock::new(JobManager::new(wallet.clone(), local_peer_id_str)));
 
@@ -131,7 +130,7 @@ impl Runtime {
         let job_provider = Arc::new(JobProvider::new(
             job_manager.clone(),
             network.clone(),
-            local_peer_id.clone(),
+            local_peer_id,
         ));
 
         // Create batch aggregator for multi-agent inference
@@ -266,34 +265,30 @@ impl Runtime {
     }
 
     /// Handle a gossip message (job-related).
-    pub async fn handle_gossip_message(&self, topic: &str, data: Vec<u8>, source: Option<PeerId>) {
+    pub async fn handle_gossip_message(&self, topic: &str, data: Vec<u8>, _source: Option<PeerId>) {
         match topic {
             t if t == job_network::topics::JOB_REQUESTS => {
-                if let Ok(msg) = job_network::deserialize_message(&data) {
-                    if let job_network::JobMessage::Request(req_msg) = msg {
-                        tracing::info!(
-                            job_id = %req_msg.request.id,
-                            from = %req_msg.requester_peer_id,
-                            "Received job request"
-                        );
-                        if let Err(e) = self.job_provider.handle_request(req_msg).await {
-                            tracing::warn!(error = %e, "Failed to handle job request");
-                        }
+                if let Ok(job_network::JobMessage::Request(req_msg)) = job_network::deserialize_message(&data) {
+                    tracing::info!(
+                        job_id = %req_msg.request.id,
+                        from = %req_msg.requester_peer_id,
+                        "Received job request"
+                    );
+                    if let Err(e) = self.job_provider.handle_request(req_msg).await {
+                        tracing::warn!(error = %e, "Failed to handle job request");
                     }
                 }
             }
             t if t == job_network::topics::JOB_BIDS => {
-                if let Ok(msg) = job_network::deserialize_message(&data) {
-                    if let job_network::JobMessage::Bid(bid_msg) = msg {
-                        tracing::debug!(
-                            job_id = %bid_msg.bid.job_id,
-                            from = %bid_msg.bidder_peer_id,
-                            price = bid_msg.bid.price,
-                            "Received bid"
-                        );
-                        if let Err(e) = self.job_manager.write().await.receive_bid(bid_msg.bid).await {
-                            tracing::warn!(error = %e, "Failed to process bid");
-                        }
+                if let Ok(job_network::JobMessage::Bid(bid_msg)) = job_network::deserialize_message(&data) {
+                    tracing::debug!(
+                        job_id = %bid_msg.bid.job_id,
+                        from = %bid_msg.bidder_peer_id,
+                        price = bid_msg.bid.price,
+                        "Received bid"
+                    );
+                    if let Err(e) = self.job_manager.write().await.receive_bid(bid_msg.bid).await {
+                        tracing::warn!(error = %e, "Failed to process bid");
                     }
                 }
             }
@@ -381,7 +376,7 @@ impl Runtime {
         }
 
         // Execute based on resource type
-        let payload = request.payload.as_ref().map(|p| p.as_slice()).unwrap_or(&[]);
+        let payload = request.payload.as_deref().unwrap_or(&[]);
         let result = match &request.resource_type {
             crate::job::ResourceType::Inference { model, tokens } => {
                 let prompt_cow = String::from_utf8_lossy(payload);

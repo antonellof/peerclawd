@@ -69,7 +69,7 @@ pub struct ChannelId(pub String);
 impl ChannelId {
     /// Generate a new channel ID.
     pub fn new(platform: &str) -> Self {
-        Self(format!("{}_{}", platform, uuid::Uuid::new_v4().to_string().replace("-", "")[..12].to_string()))
+        Self(format!("{}_{}", platform, &uuid::Uuid::new_v4().to_string().replace("-", "")[..12]))
     }
 
     /// Create from platform and instance identifier.
@@ -133,10 +133,11 @@ impl ChannelUser {
 }
 
 /// Trust level for channel users.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UserTrust {
     /// Unknown user, minimal permissions.
+    #[default]
     Unknown = 0,
     /// Verified identity on platform.
     Verified = 1,
@@ -144,12 +145,6 @@ pub enum UserTrust {
     Trusted = 2,
     /// Owner/admin of the agent.
     Owner = 3,
-}
-
-impl Default for UserTrust {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 /// Conversation/thread context.

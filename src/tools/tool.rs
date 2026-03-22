@@ -139,37 +139,27 @@ impl ToolOutput {
 }
 
 /// How much approval a tool invocation requires.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalRequirement {
     /// No approval needed.
     Never,
     /// Needs approval, but auto-approve can bypass.
+    #[default]
     UnlessAutoApproved,
     /// Always needs explicit approval.
     Always,
 }
 
-impl Default for ApprovalRequirement {
-    fn default() -> Self {
-        Self::UnlessAutoApproved
-    }
-}
-
 /// Where a tool should execute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ToolDomain {
     /// Safe to run anywhere (pure functions, queries).
+    #[default]
     Any,
     /// Must run locally (filesystem, shell).
     Local,
     /// Can run on remote peers (inference, computation).
     Remote,
-}
-
-impl Default for ToolDomain {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 /// The Tool trait defines the interface for all tools.

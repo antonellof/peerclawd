@@ -61,7 +61,7 @@ impl WebhookChannel {
     pub fn handle_webhook(
         &self,
         body: &str,
-        headers: &HashMap<String, String>,
+        _headers: &HashMap<String, String>,
     ) -> anyhow::Result<IncomingMessage> {
         // Parse webhook body (assuming JSON)
         let json: serde_json::Value = serde_json::from_str(body)?;

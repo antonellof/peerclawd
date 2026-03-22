@@ -35,6 +35,7 @@ impl FuelConfig {
 }
 
 /// Fuel meter for tracking execution costs.
+#[allow(dead_code)]
 pub struct FuelMeter {
     /// Total fuel allocated
     allocated: u64,

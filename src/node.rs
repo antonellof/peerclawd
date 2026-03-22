@@ -8,7 +8,7 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::executor::ResourceMonitor;
 use crate::identity::NodeIdentity;
-use crate::p2p::{Network, NetworkEvent};
+use crate::p2p::Network;
 use crate::swarm::{SwarmManager, SwarmManagerConfig};
 use crate::web;
 
@@ -104,18 +104,18 @@ impl Node {
         let mut event_rx = self.network.event_receiver();
 
         // Take shutdown receiver
-        let shutdown_rx = self.shutdown_rx.take()
+        let _shutdown_rx = self.shutdown_rx.take()
             .ok_or_else(|| anyhow::anyhow!("Node already running"))?;
 
         // Spawn network task
-        let network_shutdown = self.shutdown_tx.clone();
+        let _network_shutdown = self.shutdown_tx.clone();
         let mut network = std::mem::replace(
             &mut self.network,
             Network::new(&self.identity, self.config.p2p.clone())?,
         );
 
-        let network_handle = tokio::spawn(async move {
-            let (tx, rx) = mpsc::channel(1);
+        let _network_handle = tokio::spawn(async move {
+            let (_tx, rx) = mpsc::channel(1);
             if let Err(e) = network.run(rx).await {
                 tracing::error!("Network error: {}", e);
             }

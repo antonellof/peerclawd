@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::{ChannelId, ChannelUser, Conversation, MessageId, Platform};
+use super::{ChannelId, ChannelUser, MessageId, Platform};
 
 /// Error type for channel operations.
 #[derive(Error, Debug)]
@@ -57,10 +57,11 @@ pub enum MessageDirection {
 }
 
 /// Type of message content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageType {
     /// Plain text message.
+    #[default]
     Text,
     /// Markdown formatted message.
     Markdown,
@@ -80,12 +81,6 @@ pub enum MessageType {
     System,
     /// Command (slash command, etc.).
     Command,
-}
-
-impl Default for MessageType {
-    fn default() -> Self {
-        Self::Text
-    }
 }
 
 /// File attachment.
@@ -317,7 +312,7 @@ impl Default for ChannelConfig {
 }
 
 /// P2P-specific channel configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct P2pChannelConfig {
     /// Allow messages from network peers.
     pub accept_network_messages: bool,
@@ -327,17 +322,6 @@ pub struct P2pChannelConfig {
     pub min_reputation: i32,
     /// Price per message (in micro-PCLAW).
     pub price_per_message: u64,
-}
-
-impl Default for P2pChannelConfig {
-    fn default() -> Self {
-        Self {
-            accept_network_messages: false,
-            broadcast_messages: false,
-            min_reputation: 0,
-            price_per_message: 0,
-        }
-    }
 }
 
 /// The Channel trait defines the interface for messaging platforms.

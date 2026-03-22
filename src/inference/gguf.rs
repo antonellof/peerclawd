@@ -419,7 +419,7 @@ impl GgufBackend for LlamaCppBackend {
 
         while token_count < request.max_tokens {
             // Sample next token
-            let new_token = sampler.sample(&ctx, (batch.n_tokens() - 1) as i32);
+            let new_token = sampler.sample(&ctx, batch.n_tokens() - 1);
             sampler.accept(new_token);
 
             // Check for end of sequence
@@ -542,7 +542,7 @@ impl GgufBackend for LlamaCppBackend {
 
         while token_count < request.max_tokens {
             // Sample next token
-            let new_token = sampler.sample(&ctx, (batch.n_tokens() - 1) as i32);
+            let new_token = sampler.sample(&ctx, batch.n_tokens() - 1);
             sampler.accept(new_token);
 
             // Check for end of sequence

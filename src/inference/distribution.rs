@@ -49,7 +49,7 @@ impl ModelMetadata {
         let file = std::fs::File::open(path)?;
         let metadata = file.metadata()?;
         let size_bytes = metadata.len();
-        let chunk_count = ((size_bytes + CHUNK_SIZE as u64 - 1) / CHUNK_SIZE as u64) as u32;
+        let chunk_count = size_bytes.div_ceil(CHUNK_SIZE as u64) as u32;
 
         let filename = path
             .file_name()
@@ -223,7 +223,7 @@ impl ModelDistributor {
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "gguf") {
+            if path.extension().is_some_and(|e| e == "gguf") {
                 // Extract model ID from filename (e.g., "llama-3.2-3b.Q4_K_M.gguf")
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                     let model_id: ModelId = stem.to_string();

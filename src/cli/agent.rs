@@ -93,7 +93,7 @@ async fn run_agent(spec_path: PathBuf) -> anyhow::Result<()> {
     println!("Spec: {}", spec_path.display());
 
     // Generate agent ID
-    let agent_id = format!("agent_{}", uuid::Uuid::new_v4().to_string().replace('-', "")[..12].to_string());
+    let agent_id = format!("agent_{}", &uuid::Uuid::new_v4().to_string().replace('-', "")[..12]);
 
     // Store agent state in database
     let db_path = bootstrap::database_path();

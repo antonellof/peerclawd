@@ -17,7 +17,6 @@ pub use network::{JobMessage, topics as job_topics};
 
 use crate::wallet::{Wallet, WalletError};
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;

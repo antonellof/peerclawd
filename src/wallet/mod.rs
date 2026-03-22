@@ -98,7 +98,7 @@ pub struct Wallet {
 }
 
 /// Persistent wallet state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WalletState {
     /// Available balance in μPCLAW
     pub available: u64,
@@ -114,20 +114,6 @@ pub struct WalletState {
     pub hourly_spend: HashMap<u64, u64>,
     /// Spending tracker: (day_timestamp, amount_spent)
     pub daily_spend: HashMap<u64, u64>,
-}
-
-impl Default for WalletState {
-    fn default() -> Self {
-        Self {
-            available: 0,
-            in_escrow: 0,
-            staked: 0,
-            escrows: HashMap::new(),
-            transactions: Vec::new(),
-            hourly_spend: HashMap::new(),
-            daily_spend: HashMap::new(),
-        }
-    }
 }
 
 impl Wallet {

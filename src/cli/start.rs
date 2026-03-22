@@ -325,7 +325,7 @@ fn list_local_models(models_dir: &PathBuf) -> Vec<String> {
         .map(|entries| {
             entries
                 .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().map_or(false, |ext| ext == "gguf"))
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "gguf"))
                 .filter_map(|e| {
                     e.path()
                         .file_stem()

@@ -87,31 +87,29 @@ impl HeartbeatResult {
         }
     }
 
-    /// Format as string
-    pub fn to_string(&self) -> String {
+}
+
+impl std::fmt::Display for HeartbeatResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.ok && self.checks.is_empty() {
-            return "HEARTBEAT_OK".to_string();
+            return write!(f, "HEARTBEAT_OK");
         }
 
-        let mut output = String::new();
-        output.push_str(&format!(
-            "Heartbeat at {}\n",
-            self.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
-        ));
-        output.push_str(&format!("Status: {}\n\n", if self.ok { "OK" } else { "ISSUES FOUND" }));
+        writeln!(f, "Heartbeat at {}", self.timestamp.format("%Y-%m-%d %H:%M:%S UTC"))?;
+        writeln!(f, "Status: {}\n", if self.ok { "OK" } else { "ISSUES FOUND" })?;
 
         for check in &self.checks {
             let status = if check.passed { "[PASS]" } else { "[FAIL]" };
-            output.push_str(&format!("{} {}\n", status, check.name));
+            writeln!(f, "{} {}", status, check.name)?;
             if let Some(msg) = &check.message {
-                output.push_str(&format!("       {}\n", msg));
+                writeln!(f, "       {}", msg)?;
             }
             for action in &check.actions {
-                output.push_str(&format!("       -> {}\n", action));
+                writeln!(f, "       -> {}", action)?;
             }
         }
 
-        output
+        Ok(())
     }
 }
 

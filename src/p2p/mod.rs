@@ -12,7 +12,6 @@ pub use resource::{Capability, ResourceManifest, Resources};
 
 use futures::StreamExt;
 use libp2p::{
-    identity::Keypair,
     kad,
     mdns,
     swarm::{SwarmEvent, Swarm},

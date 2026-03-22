@@ -90,7 +90,7 @@ pub struct ActualUsage {
 }
 
 /// Execution performance metrics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionMetrics {
     /// Time to first byte in milliseconds
     pub ttfb_ms: u64,
@@ -98,16 +98,6 @@ pub struct ExecutionMetrics {
     pub total_time_ms: u64,
     /// Tokens per second (for inference)
     pub tokens_per_sec: Option<f64>,
-}
-
-impl Default for ExecutionMetrics {
-    fn default() -> Self {
-        Self {
-            ttfb_ms: 0,
-            total_time_ms: 0,
-            tokens_per_sec: None,
-        }
-    }
 }
 
 /// An active job being executed.

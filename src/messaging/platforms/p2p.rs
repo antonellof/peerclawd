@@ -336,6 +336,7 @@ impl Channel for P2pChannel {
 
 /// P2P message envelope for network transmission.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct P2pMessageEnvelope {
     /// Message ID.
     pub id: String,
@@ -359,6 +360,7 @@ pub struct P2pMessageEnvelope {
 
 /// Payment information for P2P messages.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct P2pPaymentInfo {
     /// Payment channel ID.
     pub channel_id: String,

@@ -2,7 +2,7 @@
 name = "peerclaw"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.80"
 description = "Decentralized P2P AI agent network"
 license = "MIT OR Apache-2.0"
 

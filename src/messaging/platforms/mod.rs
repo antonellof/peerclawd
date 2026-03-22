@@ -15,12 +15,11 @@ pub use p2p::P2pChannel;
 // Platform channel stubs (would be WASM modules in production)
 // These are placeholders showing the expected interface
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Channel, ChannelConfig, ChannelError, ChannelId, ChannelMessage,
-    MessageId, Platform,
+    Channel, ChannelConfig, ChannelError,
+    Platform,
 };
 
 /// Telegram bot channel configuration.
@@ -72,7 +71,7 @@ impl Default for DiscordConfig {
 }
 
 /// Slack app channel configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SlackConfig {
     /// Bot OAuth token.
     pub bot_token: String,
@@ -84,19 +83,8 @@ pub struct SlackConfig {
     pub channels: Vec<String>,
 }
 
-impl Default for SlackConfig {
-    fn default() -> Self {
-        Self {
-            bot_token: String::new(),
-            app_token: None,
-            signing_secret: String::new(),
-            channels: Vec::new(),
-        }
-    }
-}
-
 /// Matrix client channel configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MatrixConfig {
     /// Homeserver URL.
     pub homeserver_url: String,
@@ -106,17 +94,6 @@ pub struct MatrixConfig {
     pub access_token: String,
     /// Rooms to join.
     pub rooms: Vec<String>,
-}
-
-impl Default for MatrixConfig {
-    fn default() -> Self {
-        Self {
-            homeserver_url: String::new(),
-            user_id: String::new(),
-            access_token: String::new(),
-            rooms: Vec::new(),
-        }
-    }
 }
 
 /// Create a channel from configuration.

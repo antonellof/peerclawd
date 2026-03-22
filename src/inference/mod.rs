@@ -105,7 +105,7 @@ impl InferenceEngine {
             let entry = entry?;
             let path = entry.path();
 
-            if path.extension().map_or(false, |e| e == "gguf") {
+            if path.extension().is_some_and(|e| e == "gguf") {
                 if let Ok(info) = ModelInfo::from_path(path) {
                     registry.register(info);
                     count += 1;
@@ -298,7 +298,7 @@ impl<'a> ModelUseGuard<'a> {
 
 impl<'a> Drop for ModelUseGuard<'a> {
     fn drop(&mut self) {
-        let cache = self.cache;
+        let _cache = self.cache;
         let model_id = self.model_id.clone();
 
         // We need to spawn because Drop is sync

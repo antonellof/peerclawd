@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use crate::bootstrap;
 
 /// Root configuration for PeerClaw.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     /// P2P networking configuration
     pub p2p: P2pConfig,
@@ -37,22 +37,6 @@ pub struct Config {
 
     /// Token economy configuration
     pub economy: EconomyConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            p2p: P2pConfig::default(),
-            web: WebConfig::default(),
-            resources: ResourcesConfig::default(),
-            database: DatabaseConfig::default(),
-            agent: AgentConfig::default(),
-            inference: InferenceConfig::default(),
-            executor: ExecutorConfig::default(),
-            wasm: WasmConfig::default(),
-            economy: EconomyConfig::default(),
-        }
-    }
 }
 
 impl Config {
@@ -152,7 +136,7 @@ impl Default for WebConfig {
 }
 
 /// Resource advertisement configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResourcesConfig {
     /// Advertise GPU resources
     pub advertise_gpu: bool,
@@ -165,17 +149,6 @@ pub struct ResourcesConfig {
 
     /// RAM to advertise in MB (None = auto-detect)
     pub ram_mb: Option<u32>,
-}
-
-impl Default for ResourcesConfig {
-    fn default() -> Self {
-        Self {
-            advertise_gpu: false,
-            cpu_cores: None,
-            storage_bytes: None,
-            ram_mb: None,
-        }
-    }
 }
 
 /// Database configuration.

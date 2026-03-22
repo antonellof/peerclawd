@@ -73,6 +73,7 @@ pub enum SafetyError {
 pub type Result<T> = std::result::Result<T, SafetyError>;
 
 /// Main safety layer combining all defense mechanisms
+#[allow(dead_code)]
 pub struct SafetyLayer {
     config: SafetyConfig,
     leak_detector: LeakDetector,

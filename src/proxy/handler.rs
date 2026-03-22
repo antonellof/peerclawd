@@ -53,6 +53,7 @@ impl ProxyHandler {
 
 /// Upstream response wrapper.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UpstreamResponse {
     /// HTTP status code
     pub status: u16,
@@ -64,6 +65,7 @@ pub struct UpstreamResponse {
     pub latency_ms: u64,
 }
 
+#[allow(dead_code)]
 impl UpstreamResponse {
     /// Create a new upstream response.
     pub fn new(status: u16, body: Vec<u8>) -> Self {

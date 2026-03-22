@@ -28,7 +28,7 @@ pub struct PeerclawdBehaviour {
 }
 
 /// Build a complete swarm with all behaviours configured.
-pub fn build_swarm(keypair: Keypair, config: &P2pConfig) -> anyhow::Result<Swarm<PeerclawdBehaviour>> {
+pub fn build_swarm(keypair: Keypair, _config: &P2pConfig) -> anyhow::Result<Swarm<PeerclawdBehaviour>> {
     let local_peer_id = PeerId::from(keypair.public());
 
     // Build the swarm with TCP transport
@@ -61,7 +61,7 @@ pub fn build_swarm(keypair: Keypair, config: &P2pConfig) -> anyhow::Result<Swarm
                     .build()
                     .map_err(|e| anyhow::anyhow!("GossipSub config error: {}", e))?;
 
-                let message_id_fn = |message: &gossipsub::Message| {
+                let _message_id_fn = |message: &gossipsub::Message| {
                     // Use blake3 hash of message content as ID
                     let hash = blake3::hash(&message.data);
                     gossipsub::MessageId::from(hash.as_bytes().to_vec())

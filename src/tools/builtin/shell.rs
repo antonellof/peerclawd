@@ -17,13 +17,14 @@ use tokio::process::Command;
 
 use crate::tools::tool::{
     Tool, ToolContext, ToolError, ToolOutput, ToolDomain, ApprovalRequirement,
-    require_str, optional_str, optional_i64, optional_bool,
+    require_str, optional_str, optional_i64,
 };
 
 /// Maximum output size before truncation (64KB).
 const MAX_OUTPUT_SIZE: usize = 64 * 1024;
 
 /// Default command timeout.
+#[allow(dead_code)]
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Commands that are always blocked for safety.
@@ -63,6 +64,7 @@ static DANGEROUS_PATTERNS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
 });
 
 /// Patterns that should NEVER be auto-approved.
+#[allow(dead_code)]
 static NEVER_AUTO_APPROVE_PATTERNS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
     vec![
         "rm -rf",
@@ -218,7 +220,7 @@ impl Tool for ShellTool {
 
         // Build command
         let working_dir = cwd
-            .map(|s| std::path::PathBuf::from(s))
+            .map(std::path::PathBuf::from)
             .unwrap_or_else(|| ctx.working_dir.clone());
 
         let mut cmd = if cfg!(windows) {
@@ -362,6 +364,7 @@ fn truncate_output(bytes: &[u8], max_size: usize) -> String {
 }
 
 /// Check if a command requires explicit approval (even if auto-approved).
+#[allow(dead_code)]
 pub fn requires_explicit_approval(command: &str) -> bool {
     let lower = command.to_lowercase();
     NEVER_AUTO_APPROVE_PATTERNS.iter().any(|pattern| lower.contains(*pattern))

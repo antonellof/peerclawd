@@ -151,7 +151,7 @@ impl PaymentProof {
                 Ok(true)
             }
 
-            PaymentMethod::Channel { amount, signature, channel_id, nonce } => {
+            PaymentMethod::Channel { amount, signature, channel_id, nonce: _ } => {
                 // Check amount
                 if *amount < required_amount {
                     return Ok(false);
@@ -195,6 +195,7 @@ impl PaymentProof {
 
 /// Response with payment information for 402 responses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PaymentInfo {
     /// Required amount in μPCLAW
     pub required_amount: u64,
@@ -208,6 +209,7 @@ pub struct PaymentInfo {
     pub instructions: String,
 }
 
+#[allow(dead_code)]
 impl PaymentInfo {
     /// Create payment info for a 402 response.
     pub fn new(required_amount: u64, payment_address: String) -> Self {
@@ -220,12 +222,10 @@ impl PaymentInfo {
                 "channel".to_string(),
                 "prepaid".to_string(),
             ],
-            instructions: format!(
-                "Include payment proof in request headers:\n\
+            instructions: "Include payment proof in request headers:\n\
                  - X-Payment-Proof: direct:<proof_id>:<amount>:<signature>\n\
                  - X-Channel-Payment: <channel_id>:<nonce>:<amount>:<signature>\n\
-                 - Authorization: Bearer <api_key>"
-            ),
+                 - Authorization: Bearer <api_key>".to_string(),
         }
     }
 }

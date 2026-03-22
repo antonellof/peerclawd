@@ -48,6 +48,7 @@ pub struct Database {
     db: Arc<RedbDatabase>,
 }
 
+#[allow(clippy::result_large_err)]
 impl Database {
     /// Open or create a database at the given path.
     pub fn open(path: &Path) -> Result<Self, DatabaseError> {

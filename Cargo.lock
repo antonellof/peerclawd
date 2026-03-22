@@ -4726,6 +4726,7 @@ dependencies = [
  "vectx",
  "wasmtime",
  "wasmtime-wasi",
+ "wat",
  "which",
 ]
 

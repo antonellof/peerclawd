@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use wasmtime::{Caller, Config, Engine, Extern, Linker, Module, Store, Val};
+use wasmtime::{Caller, Config, Engine, Linker, Module, Store, Val};
 
 use super::host::{HostCapabilities, HostState, LogLevel};
 use super::WasmError;

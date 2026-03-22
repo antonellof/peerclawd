@@ -149,10 +149,11 @@ impl SwarmAgent {
 }
 
 /// Agent state machine
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", content = "data")]
 pub enum SwarmAgentState {
     /// Idle, waiting for work
+    #[default]
     Idle,
 
     /// Processing/reasoning
@@ -175,12 +176,6 @@ pub enum SwarmAgentState {
 
     /// Agent went offline (for remote peers)
     Offline,
-}
-
-impl Default for SwarmAgentState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 impl std::fmt::Display for SwarmAgentState {

@@ -3,7 +3,7 @@
 use clap::{Args, Subcommand};
 
 use crate::vector::{
-    get_embedder, init_embedder, EmbeddingConfig, EmbeddingProvider, VectorStore, VectorStoreConfig,
+    get_embedder, VectorStore, VectorStoreConfig,
 };
 
 #[derive(Args)]

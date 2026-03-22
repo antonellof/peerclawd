@@ -1,6 +1,6 @@
 //! File system tools: read, write, list.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -381,9 +381,9 @@ async fn list_directory(path: &PathBuf, include_hidden: bool, limit: usize) -> R
         }
 
         let metadata = entry.metadata().await.ok();
-        let file_type = if metadata.as_ref().map_or(false, |m| m.is_dir()) {
+        let file_type = if metadata.as_ref().is_some_and(|m| m.is_dir()) {
             "directory"
-        } else if metadata.as_ref().map_or(false, |m| m.is_symlink()) {
+        } else if metadata.as_ref().is_some_and(|m| m.is_symlink()) {
             "symlink"
         } else {
             "file"
@@ -408,9 +408,9 @@ async fn list_directory(path: &PathBuf, include_hidden: bool, limit: usize) -> R
     Ok(entries)
 }
 
-async fn list_recursive(path: &PathBuf, include_hidden: bool, limit: usize) -> Result<Vec<serde_json::Value>, ToolError> {
+async fn list_recursive(path: &Path, include_hidden: bool, limit: usize) -> Result<Vec<serde_json::Value>, ToolError> {
     let mut entries = Vec::new();
-    let mut stack = vec![path.clone()];
+    let mut stack = vec![path.to_path_buf()];
 
     while let Some(current) = stack.pop() {
         if entries.len() >= limit {

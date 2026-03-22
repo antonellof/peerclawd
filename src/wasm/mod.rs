@@ -174,6 +174,7 @@ impl ToolRegistry {
 }
 
 /// WASM execution context.
+#[allow(dead_code)]
 pub struct WasmExecutor {
     /// Sandbox for running WASM
     sandbox: WasmSandbox,
@@ -218,9 +219,9 @@ impl WasmExecutor {
         // Check capabilities
         if let Some(info) = self.registry.get(tool_hash) {
             if !capabilities.satisfies(&info.required_capabilities) {
-                return Err(WasmError::CapabilityDenied(format!(
-                    "Tool requires capabilities not granted"
-                )));
+                return Err(WasmError::CapabilityDenied(
+                    "Tool requires capabilities not granted".to_string()
+                ));
             }
         }
 

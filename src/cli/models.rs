@@ -73,7 +73,7 @@ async fn list_models() -> anyhow::Result<()> {
     if let Ok(entries) = std::fs::read_dir(&models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "gguf") {
+            if path.extension().is_some_and(|e| e == "gguf") {
                 found = true;
                 let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("?");
                 let size = std::fs::metadata(&path)
@@ -206,7 +206,7 @@ async fn remove_model(model: &str) -> anyhow::Result<()> {
     if let Ok(entries) = std::fs::read_dir(&models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "gguf") {
+            if path.extension().is_some_and(|e| e == "gguf") {
                 let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
                 if name.to_lowercase().contains(&model.to_lowercase()) {
                     found = Some(path);
@@ -249,7 +249,7 @@ async fn show_info(model: &str) -> anyhow::Result<()> {
     if let Ok(entries) = std::fs::read_dir(&models_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "gguf") {
+            if path.extension().is_some_and(|e| e == "gguf") {
                 let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
                 if name.to_lowercase().contains(&model.to_lowercase()) {
                     found = Some(path);

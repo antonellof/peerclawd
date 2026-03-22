@@ -133,6 +133,7 @@ pub fn select_skills(
 }
 
 /// Build a combined prompt from selected skills.
+#[allow(dead_code)]
 pub fn build_skill_prompt(skills: &[SkillScore], max_tokens: usize) -> String {
     let mut prompt = String::new();
     let mut tokens_used = 0;

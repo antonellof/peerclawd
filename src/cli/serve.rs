@@ -169,7 +169,7 @@ pub async fn run(args: ServeArgs) -> anyhow::Result<()> {
     let mut stats_interval = tokio::time::interval(std::time::Duration::from_secs(2));
 
     // Interval for advertising resources
-    let mut advertise_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+    let _advertise_interval = tokio::time::interval(std::time::Duration::from_secs(30));
 
     // Interval for auto-accepting bids on pending jobs (after bid collection period)
     let mut bid_accept_interval = tokio::time::interval(std::time::Duration::from_secs(3));

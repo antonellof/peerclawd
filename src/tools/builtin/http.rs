@@ -8,7 +8,7 @@ use reqwest::Client;
 
 use crate::tools::tool::{
     Tool, ToolContext, ToolError, ToolOutput, ToolDomain, ApprovalRequirement,
-    require_str, optional_str, optional_i64, optional_bool,
+    require_str, optional_str, optional_i64,
 };
 
 /// Default timeout for HTTP requests.

@@ -417,7 +417,7 @@ pub struct WasmResult {
 }
 
 /// Execution metrics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TaskMetrics {
     /// Time to first byte/token (ms)
     pub ttfb_ms: u64,
@@ -425,16 +425,6 @@ pub struct TaskMetrics {
     pub total_time_ms: u64,
     /// Queue wait time (ms)
     pub queue_time_ms: u64,
-}
-
-impl Default for TaskMetrics {
-    fn default() -> Self {
-        Self {
-            ttfb_ms: 0,
-            total_time_ms: 0,
-            queue_time_ms: 0,
-        }
-    }
 }
 
 /// Parse model size from model name.

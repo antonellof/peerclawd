@@ -42,6 +42,7 @@ use crate::job::JobManager;
 use crate::p2p::Network;
 
 /// Unified task executor with automatic local/network routing.
+#[allow(dead_code)]
 pub struct TaskExecutor {
     router: TaskRouter,
     resource_monitor: Arc<ResourceMonitor>,
@@ -203,7 +204,7 @@ impl TaskExecutor {
         // 6. Wait for result
         // 7. Verify and settle
 
-        let total_time_ms = start.elapsed().as_millis() as u64;
+        let _total_time_ms = start.elapsed().as_millis() as u64;
 
         // For now, return a placeholder indicating remote execution isn't fully implemented
         tracing::warn!(
@@ -250,7 +251,7 @@ impl TaskExecutor {
             if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().map_or(false, |e| e == "gguf") {
+                    if path.extension().is_some_and(|e| e == "gguf") {
                         let filename = path.file_stem()
                             .and_then(|s| s.to_str())
                             .unwrap_or("");
@@ -269,7 +270,7 @@ impl TaskExecutor {
                 if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
-                        if path.extension().map_or(false, |e| e == "gguf") {
+                        if path.extension().is_some_and(|e| e == "gguf") {
                             found_path = Some(path);
                             break;
                         }
@@ -474,7 +475,7 @@ impl TaskExecutor {
             if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().map_or(false, |e| e == "gguf") {
+                    if path.extension().is_some_and(|e| e == "gguf") {
                         let filename = path.file_stem()
                             .and_then(|s| s.to_str())
                             .unwrap_or("");
@@ -491,7 +492,7 @@ impl TaskExecutor {
                 if let Ok(entries) = std::fs::read_dir(&self.config.models_dir) {
                     for entry in entries.flatten() {
                         let path = entry.path();
-                        if path.extension().map_or(false, |e| e == "gguf") {
+                        if path.extension().is_some_and(|e| e == "gguf") {
                             found_path = Some(path);
                             break;
                         }

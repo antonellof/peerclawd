@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use super::{LoadedSkill, SkillAnnouncement, SkillSource, SkillTrust, MAX_SKILL_SIZE};
+use super::{LoadedSkill, SkillAnnouncement, SkillSource, SkillTrust};
 use super::parser::{parse_skill, ParseError};
 
 /// Skill registry manages local and network skills.
@@ -50,7 +50,7 @@ impl SkillRegistry {
             // Check for SKILL.md files or directories with SKILL.md
             let skill_file = if path.is_dir() {
                 path.join("SKILL.md")
-            } else if path.extension().map_or(false, |e| e == "md") {
+            } else if path.extension().is_some_and(|e| e == "md") {
                 path.clone()
             } else {
                 continue;

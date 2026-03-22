@@ -247,7 +247,7 @@ impl Tool for MemorySearchTool {
                     true
                 }
             })
-            .filter_map(|r| MemoryEntry::from_search_result(r))
+            .filter_map(MemoryEntry::from_search_result)
             .take(limit)
             .collect();
 
@@ -435,8 +435,10 @@ impl Tool for MemoryWriteTool {
 }
 
 /// Memory stats tool - get statistics about the memory store
+#[allow(dead_code)]
 pub struct MemoryStatsTool;
 
+#[allow(dead_code)]
 impl MemoryStatsTool {
     pub fn new() -> Self {
         Self

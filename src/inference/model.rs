@@ -144,6 +144,7 @@ impl ModelArchitecture {
 }
 
 /// Quantization type.
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Quantization {
     F32,

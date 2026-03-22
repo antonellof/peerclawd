@@ -233,7 +233,7 @@ impl Default for PricingStrategy {
 
 impl PricingStrategy {
     /// Calculate price for a resource considering utilization and reputation.
-    pub fn calculate_price(&self, resource: &ResourceType, units: u32) -> u64 {
+    pub fn calculate_price(&self, resource: &ResourceType, _units: u32) -> u64 {
         let base_price = self.base_rates.calculate(resource);
         let adjusted = (base_price as f64 * self.utilization_multiplier) as u64;
 

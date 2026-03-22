@@ -3,7 +3,7 @@
 //! Provides an interactive command-line interface for the agent.
 
 use async_trait::async_trait;
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use tokio::sync::mpsc;
 
 use crate::messaging::{

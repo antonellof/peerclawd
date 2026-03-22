@@ -52,7 +52,7 @@ pub async fn run() -> anyhow::Result<()> {
     results.push(check_p2p_config().await);
 
     // Print results
-    println!("\n{:<5} {:<20} {:<6} {}", "", "CHECK", "STATUS", "DETAIL");
+    println!("\n{:<5} {:<20} {:<6} DETAIL", "", "CHECK", "STATUS");
     println!("{}", "-".repeat(70));
 
     let mut ok_count = 0;
@@ -222,7 +222,7 @@ async fn check_inference() -> CheckResult {
     let (status, detail) = if model_count > 0 {
         (CheckStatus::Ok, format!("{} GGUF model(s) found in {}", model_count, models_dir.display()))
     } else {
-        (CheckStatus::Warn, format!("No GGUF models found. Download with: peerclaw models download <model>"))
+        (CheckStatus::Warn, "No GGUF models found. Download with: peerclaw models download <model>".to_string())
     };
 
     CheckResult {

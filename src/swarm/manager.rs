@@ -7,7 +7,7 @@ use chrono::Utc;
 use libp2p::PeerId;
 use parking_lot::RwLock;
 use tokio::sync::broadcast;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use super::agent::{SwarmAgent, SwarmAgentState};
@@ -129,7 +129,7 @@ impl SwarmManager {
             let capabilities: Vec<AgentCapability> = manifest
                 .capabilities
                 .iter()
-                .map(|c| AgentCapability::from(c.clone()))
+                .map(|c| AgentCapability::from(*c))
                 .collect();
             AgentProfile::from_capabilities(capabilities)
         } else {
@@ -316,7 +316,7 @@ impl SwarmManager {
                 let capabilities: Vec<AgentCapability> = manifest
                     .capabilities
                     .iter()
-                    .map(|c| AgentCapability::from(c.clone()))
+                    .map(|c| AgentCapability::from(*c))
                     .collect();
 
                 if let Some(agent) = self.agents.write().get_mut(&agent_id) {
@@ -423,6 +423,7 @@ impl Default for SwarmManager {
 }
 
 /// Create a shared SwarmManager
+#[allow(dead_code)]
 pub fn create_swarm_manager(config: SwarmManagerConfig) -> Arc<SwarmManager> {
     Arc::new(SwarmManager::new(config))
 }

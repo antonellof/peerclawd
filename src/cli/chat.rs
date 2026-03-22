@@ -407,7 +407,7 @@ enum ChatMode {
     /// Using a running node via API
     Api { base_url: String },
     /// Standalone local runtime
-    Local { runtime: Runtime },
+    Local { runtime: Box<Runtime> },
 }
 
 pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
@@ -443,16 +443,16 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
     // Determine mode
     let mode = if args.standalone {
         println!("Mode: \x1b[33mStandalone\x1b[0m");
-        ChatMode::Local { runtime: create_standalone_runtime().await? }
+        ChatMode::Local { runtime: Box::new(create_standalone_runtime().await?) }
     } else if let Some(base_url) = check_running_node().await {
         println!("Mode: \x1b[32mConnected to running node\x1b[0m at {}", base_url);
         ChatMode::Api { base_url }
     } else if settings.distributed {
         println!("Mode: \x1b[35mDistributed\x1b[0m (will use network peers if needed)");
-        ChatMode::Local { runtime: create_standalone_runtime().await? }
+        ChatMode::Local { runtime: Box::new(create_standalone_runtime().await?) }
     } else {
         println!("Mode: \x1b[36mLocal\x1b[0m");
-        ChatMode::Local { runtime: create_standalone_runtime().await? }
+        ChatMode::Local { runtime: Box::new(create_standalone_runtime().await?) }
     };
 
     println!();
@@ -720,7 +720,7 @@ pub async fn run(args: ChatArgs) -> anyhow::Result<()> {
                     let models_dir = bootstrap::base_dir().join("models");
                     let model_count = std::fs::read_dir(&models_dir)
                         .map(|e| e.filter_map(|f| f.ok())
-                            .filter(|f| f.path().extension().map_or(false, |e| e == "gguf"))
+                            .filter(|f| f.path().extension().is_some_and(|e| e == "gguf"))
                             .count())
                         .unwrap_or(0);
                     if model_count > 0 {

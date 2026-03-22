@@ -340,15 +340,13 @@ async fn run_agent(agent_num: u32, base_dir: std::path::PathBuf, duration_secs: 
         // Each agent periodically executes a task
         if agent_num % 2 == 0 {
             // Even agents do inference tasks
-            match runtime.inference("Test prompt", "test-model", 10).await {
-                Ok(_) => tasks_completed += 1,
-                Err(_) => {}
+            if runtime.inference("Test prompt", "test-model", 10).await.is_ok() {
+                tasks_completed += 1;
             }
         } else {
             // Odd agents do web fetch tasks
-            match runtime.web_fetch("https://httpbin.org/get").await {
-                Ok(_) => tasks_completed += 1,
-                Err(_) => {}
+            if runtime.web_fetch("https://httpbin.org/get").await.is_ok() {
+                tasks_completed += 1;
             }
         }
 
@@ -375,6 +373,7 @@ async fn run_agent(agent_num: u32, base_dir: std::path::PathBuf, duration_secs: 
 // ============================================================================
 
 /// Information about a running cluster node
+#[allow(dead_code)]
 struct ClusterNode {
     index: u32,
     child: Child,

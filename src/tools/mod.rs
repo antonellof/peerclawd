@@ -14,12 +14,9 @@ pub mod tool;
 pub use registry::{ToolRegistry, ToolInfo};
 pub use tool::{Tool, ToolContext, ToolError, ToolOutput};
 
-use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 
 /// Tool execution location.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

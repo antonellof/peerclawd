@@ -6,7 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Result, WorkspaceError};
+use super::Result;
 
 /// Memory entry in MEMORY.md
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,8 +30,8 @@ pub fn parse_memory(content: &str) -> Result<Vec<MemoryEntry>> {
         let line = line.trim();
 
         // Section header
-        if line.starts_with("## ") {
-            current_category = line[3..].trim().to_lowercase().replace(' ', "_");
+        if let Some(stripped) = line.strip_prefix("## ") {
+            current_category = stripped.trim().to_lowercase().replace(' ', "_");
             continue;
         }
 

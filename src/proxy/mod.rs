@@ -153,7 +153,7 @@ impl ProxyState {
         let now = chrono::Utc::now().timestamp() as u64;
         let current_hour = now / 3600;
 
-        let mut usage = self.free_tier_usage.write().await;
+        let usage = self.free_tier_usage.write().await;
 
         match usage.get(client_id) {
             Some((hour, count)) if *hour == current_hour => {
@@ -294,7 +294,7 @@ impl Proxy {
         let paid = match payment_proof {
             Some(proof) => {
                 // Verify payment proof
-                proof.verify(price).map_err(|e| ProxyError::InvalidPayment(e))?
+                proof.verify(price).map_err(ProxyError::InvalidPayment)?
             }
             None => {
                 // No payment provided, check free tier

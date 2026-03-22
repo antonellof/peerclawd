@@ -13,7 +13,7 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 
 use super::builtin;
-use super::tool::{Tool, ToolContext, ToolError, ToolOutput, ToolDomain};
+use super::tool::{Tool, ToolContext, ToolError, ToolDomain};
 use super::{ToolCapabilities, ToolLocation, ToolResult};
 
 /// Tool availability on the network.
@@ -48,6 +48,7 @@ pub struct ToolRegistry {
 }
 
 /// WASM tool entry.
+#[allow(dead_code)]
 struct WasmToolEntry {
     name: String,
     description: String,

@@ -89,9 +89,8 @@ impl SignedUpdate {
         let mut sig_array = [0u8; 64];
         sig_array.copy_from_slice(&sig_bytes);
 
-        match Signature::from_bytes(&sig_array) {
-            sig => verifier.verify(&bytes, &sig),
-        }
+        let sig = Signature::from_bytes(&sig_array);
+        verifier.verify(&bytes, &sig)
     }
 }
 

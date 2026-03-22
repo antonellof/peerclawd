@@ -144,6 +144,7 @@ pub struct BatchStats {
 }
 
 /// Batch Aggregator - collects and processes inference requests in batches
+#[allow(dead_code)]
 pub struct BatchAggregator {
     config: BatchConfig,
     /// Incoming request queue

@@ -9,7 +9,6 @@
 use std::time::Instant;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 use crate::tools::tool::{
     Tool, ToolContext, ToolError, ToolOutput, ToolDomain, ApprovalRequirement,
@@ -102,7 +101,7 @@ impl Tool for JobSubmitTool {
             .unwrap_or(10.0);
 
         // Generate job ID
-        let job_id = format!("job_{}", uuid::Uuid::new_v4().to_string()[..8].to_string());
+        let job_id = format!("job_{}", &uuid::Uuid::new_v4().to_string()[..8]);
 
         // Build job request based on type
         let job_details = match job_type {
@@ -419,7 +418,7 @@ impl Tool for WalletBalanceTool {
         let start = Instant::now();
 
         let include_history = optional_bool(&params, "include_history", false);
-        let history_limit = optional_i64(&params, "history_limit", 10) as usize;
+        let _history_limit = optional_i64(&params, "history_limit", 10) as usize;
 
         // TODO: Actually query Wallet
         // For now, return placeholder data
