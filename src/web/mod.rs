@@ -12,6 +12,7 @@ pub mod openai;
 use std::sync::Arc;
 use std::net::SocketAddr;
 
+
 use axum::{
     extract::{State, ws::{WebSocket, WebSocketUpgrade, Message}},
     response::{Html, IntoResponse, Json},
@@ -23,6 +24,7 @@ use tokio::sync::{RwLock, mpsc};
 use libp2p::PeerId;
 
 use crate::executor::ResourceMonitor;
+use crate::swarm::SwarmManager;
 use crate::wallet::from_micro;
 
 /// Request for inference from web UI
@@ -88,6 +90,8 @@ pub struct WebState {
     pub inference_tx: Option<mpsc::Sender<InferenceRequest>>,
     /// Channel for receiving job submission requests from web UI
     pub job_submit_tx: Option<mpsc::Sender<JobSubmitRequest>>,
+    /// Swarm manager for agent visualization
+    pub swarm_manager: Option<Arc<SwarmManager>>,
 }
 
 /// Create the web router.
@@ -102,6 +106,10 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/api/jobs/submit", post(api_submit_job))
         .route("/api/chat", post(api_chat))
         .route("/ws", get(ws_handler))
+        // Swarm visualization routes
+        .route("/api/swarm/agents", get(api_swarm_agents))
+        .route("/api/swarm/topology", get(api_swarm_topology))
+        .route("/api/swarm/timeline", get(api_swarm_timeline))
         // OpenAI-compatible API routes
         .route("/v1/chat/completions", post(openai::chat_completions))
         .route("/v1/models", get(openai::list_models))
@@ -124,6 +132,7 @@ pub fn create_web_state(
         job_list: Arc::new(RwLock::new(Vec::new())),
         inference_tx: None,
         job_submit_tx: None,
+        swarm_manager: None,
     })
 }
 
@@ -144,6 +153,7 @@ pub fn create_web_state_with_channels(
         job_list: Arc::new(RwLock::new(Vec::new())),
         inference_tx: Some(inference_tx),
         job_submit_tx: Some(job_submit_tx),
+        swarm_manager: None,
     })
 }
 
@@ -163,6 +173,27 @@ pub fn create_web_state_with_inference(
         job_list: Arc::new(RwLock::new(Vec::new())),
         inference_tx: Some(inference_tx),
         job_submit_tx: None,
+        swarm_manager: None,
+    })
+}
+
+/// Create WebState with swarm manager for agent visualization.
+pub fn create_web_state_with_swarm(
+    local_peer_id: PeerId,
+    resource_monitor: Arc<ResourceMonitor>,
+    swarm_manager: Arc<SwarmManager>,
+) -> Arc<WebState> {
+    Arc::new(WebState {
+        local_peer_id,
+        resource_monitor,
+        wallet_balance: Arc::new(RwLock::new(0)),
+        connected_peers: Arc::new(RwLock::new(Vec::new())),
+        active_jobs: Arc::new(RwLock::new(0)),
+        completed_jobs: Arc::new(RwLock::new(0)),
+        job_list: Arc::new(RwLock::new(Vec::new())),
+        inference_tx: None,
+        job_submit_tx: None,
+        swarm_manager: Some(swarm_manager),
     })
 }
 
@@ -440,4 +471,165 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<WebState>) {
             break;
         }
     }
+}
+
+// === Swarm API Endpoints ===
+
+#[derive(Serialize)]
+struct SwarmAgentInfo {
+    id: String,
+    name: String,
+    state: String,
+    is_local: bool,
+    action_count: u64,
+    jobs_completed: u64,
+    jobs_failed: u64,
+    success_rate: f64,
+    created_at: String,
+    last_active_at: String,
+}
+
+#[derive(Serialize)]
+struct SwarmAgentsResponse {
+    agents: Vec<SwarmAgentInfo>,
+    total: usize,
+}
+
+async fn api_swarm_agents(State(state): State<Arc<WebState>>) -> Json<SwarmAgentsResponse> {
+    let Some(swarm) = &state.swarm_manager else {
+        return Json(SwarmAgentsResponse { agents: vec![], total: 0 });
+    };
+
+    let agents = swarm.get_agents();
+    let agent_infos: Vec<SwarmAgentInfo> = agents
+        .into_iter()
+        .map(|a| SwarmAgentInfo {
+            id: a.id.to_string(),
+            name: a.name.clone(),
+            state: a.state_display().to_string(),
+            is_local: a.peer_id.is_none(),
+            action_count: a.action_count,
+            jobs_completed: a.jobs_completed,
+            jobs_failed: a.jobs_failed,
+            success_rate: a.success_rate(),
+            created_at: a.created_at.to_rfc3339(),
+            last_active_at: a.last_active_at.to_rfc3339(),
+        })
+        .collect();
+
+    let total = agent_infos.len();
+    Json(SwarmAgentsResponse { agents: agent_infos, total })
+}
+
+#[derive(Serialize)]
+struct TopologyNode {
+    id: String,
+    name: String,
+    state: String,
+    is_local: bool,
+    action_count: u64,
+    success_rate: f64,
+}
+
+#[derive(Serialize)]
+struct TopologyEdge {
+    source: String,
+    target: String,
+}
+
+#[derive(Serialize)]
+struct SwarmTopologyResponse {
+    nodes: Vec<TopologyNode>,
+    edges: Vec<TopologyEdge>,
+    timestamp: String,
+}
+
+async fn api_swarm_topology(State(state): State<Arc<WebState>>) -> Json<SwarmTopologyResponse> {
+    let Some(swarm) = &state.swarm_manager else {
+        return Json(SwarmTopologyResponse {
+            nodes: vec![],
+            edges: vec![],
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        });
+    };
+
+    let agents = swarm.get_agents();
+    let nodes: Vec<TopologyNode> = agents
+        .iter()
+        .map(|a| TopologyNode {
+            id: a.id.to_string(),
+            name: a.name.clone(),
+            state: a.state_display().to_string(),
+            is_local: a.peer_id.is_none(),
+            action_count: a.action_count,
+            success_rate: a.success_rate(),
+        })
+        .collect();
+
+    // Build edges: connect local agents to remote agents
+    let mut edges = Vec::new();
+    let local_agents: Vec<_> = agents.iter().filter(|a| a.peer_id.is_none()).collect();
+    let remote_agents: Vec<_> = agents.iter().filter(|a| a.peer_id.is_some()).collect();
+
+    for local in &local_agents {
+        for remote in &remote_agents {
+            edges.push(TopologyEdge {
+                source: local.id.to_string(),
+                target: remote.id.to_string(),
+            });
+        }
+    }
+
+    Json(SwarmTopologyResponse {
+        nodes,
+        edges,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+#[derive(Serialize)]
+struct SwarmActionInfo {
+    id: String,
+    agent_id: String,
+    agent_name: String,
+    action_type: String,
+    details: String,
+    timestamp: String,
+}
+
+#[derive(Serialize)]
+struct SwarmTimelineResponse {
+    actions: Vec<SwarmActionInfo>,
+    total: usize,
+    has_more: bool,
+}
+
+async fn api_swarm_timeline(State(state): State<Arc<WebState>>) -> Json<SwarmTimelineResponse> {
+    let Some(swarm) = &state.swarm_manager else {
+        return Json(SwarmTimelineResponse {
+            actions: vec![],
+            total: 0,
+            has_more: false,
+        });
+    };
+
+    let actions = swarm.get_actions(50, 0);
+    let action_infos: Vec<SwarmActionInfo> = actions
+        .into_iter()
+        .map(|a| SwarmActionInfo {
+            id: a.id.to_string(),
+            agent_id: a.agent_id.to_string(),
+            agent_name: a.agent_name,
+            action_type: format!("{:?}", a.action_type),
+            details: a.description,
+            timestamp: a.timestamp.to_rfc3339(),
+        })
+        .collect();
+
+    let total = action_infos.len();
+    Json(SwarmTimelineResponse {
+        actions: action_infos,
+        total,
+        has_more: false,
+    })
 }

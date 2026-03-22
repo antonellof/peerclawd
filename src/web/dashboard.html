@@ -309,6 +309,159 @@
             font-style: italic;
         }
 
+        /* Swarm Visualization */
+        .swarm-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 0.75rem;
+        }
+
+        .swarm-topology {
+            flex: 1;
+            min-height: 200px;
+            position: relative;
+        }
+
+        .swarm-topology svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .agent-node {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .agent-node:hover circle {
+            stroke-width: 3px;
+            stroke: var(--accent);
+        }
+
+        .agent-node circle.idle { fill: var(--text-secondary); }
+        .agent-node circle.thinking { fill: var(--warning); }
+        .agent-node circle.working { fill: var(--accent); }
+        .agent-node circle.waiting { fill: #a371f7; }
+        .agent-node circle.error { fill: var(--danger); }
+        .agent-node circle.offline { fill: var(--bg-tertiary); }
+        .agent-node circle.local-ring { stroke: var(--accent); stroke-width: 3px; }
+        .agent-node circle.remote-ring { stroke: var(--success); stroke-width: 2px; stroke-dasharray: 4 2; }
+
+        .agent-name-label {
+            fill: var(--text-primary);
+            font-size: 9px;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .swarm-link {
+            stroke: var(--border);
+            stroke-opacity: 0.5;
+            stroke-dasharray: 4 2;
+        }
+
+        .swarm-agents-bar {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            padding-bottom: 0.25rem;
+        }
+
+        .agent-card {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            min-width: 140px;
+            flex-shrink: 0;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .agent-card:hover, .agent-card.selected {
+            border-color: var(--accent);
+        }
+
+        .agent-card-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agent-card-state {
+            font-size: 0.65rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .state-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .state-dot.idle { background: var(--text-secondary); }
+        .state-dot.thinking { background: var(--warning); animation: pulse 1s infinite; }
+        .state-dot.working { background: var(--accent); animation: pulse 1s infinite; }
+        .state-dot.waiting { background: #a371f7; }
+        .state-dot.error { background: var(--danger); }
+        .state-dot.offline { background: var(--bg-primary); }
+
+        .agent-card-stats {
+            font-size: 0.6rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .swarm-timeline {
+            max-height: 150px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-start;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .timeline-time {
+            color: var(--text-secondary);
+            white-space: nowrap;
+            font-family: monospace;
+            font-size: 0.6rem;
+            min-width: 50px;
+        }
+
+        .timeline-agent {
+            color: var(--accent);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .timeline-action {
+            color: var(--text-primary);
+        }
+
+        .timeline-type {
+            display: inline-block;
+            font-size: 0.6rem;
+            padding: 0 0.25rem;
+            border-radius: 2px;
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--accent);
+        }
+
         /* Job submission form */
         .job-form {
             background: var(--bg-tertiary);
@@ -651,6 +804,7 @@
             <div class="panel-header">
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="chat">AI Chat</button>
+                    <button class="tab-btn" data-tab="swarm">Swarm</button>
                     <button class="tab-btn" data-tab="jobs">Jobs</button>
                 </div>
                 <select id="model-select" style="background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; padding: 0.25rem 0.5rem; color: var(--text-primary);">
@@ -673,6 +827,19 @@
                     <div class="chat-input-area">
                         <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." autocomplete="off">
                         <button class="chat-send" id="chat-send">Send</button>
+                    </div>
+                </div>
+
+                <!-- Swarm Tab -->
+                <div id="tab-swarm" class="tab-content" style="height: 100%; overflow: hidden;">
+                    <div class="swarm-container">
+                        <div class="swarm-agents-bar" id="swarm-agents-bar">
+                            <div style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.5rem;">No agents registered</div>
+                        </div>
+                        <div class="swarm-topology" id="swarm-topology"></div>
+                        <div class="swarm-timeline" id="swarm-timeline">
+                            <div style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.5rem;">No recent activity</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1028,9 +1195,14 @@
                 activeTab.classList.add('active');
                 activeTab.style.display = tabName === 'chat' ? 'flex' : 'block';
 
-                // Hide model select for jobs tab
+                // Hide model select for non-chat tabs
                 document.getElementById('model-select').style.display =
                     tabName === 'chat' ? 'block' : 'none';
+
+                // Refresh swarm view when switching to it
+                if (tabName === 'swarm') {
+                    fetchSwarmData();
+                }
             });
         });
 
@@ -1175,19 +1347,203 @@
             submitJobBtn.textContent = 'Submit Job to Network';
         });
 
+        // === Swarm Visualization ===
+        let swarmAgents = [];
+        let swarmTopology = { nodes: [], edges: [] };
+        let swarmTimeline = [];
+        let swarmSimulation = null;
+
+        async function fetchSwarmData() {
+            try {
+                const [agentsRes, topoRes, timelineRes] = await Promise.all([
+                    fetch('/api/swarm/agents'),
+                    fetch('/api/swarm/topology'),
+                    fetch('/api/swarm/timeline')
+                ]);
+                const agentsData = await agentsRes.json();
+                swarmAgents = agentsData.agents || [];
+                swarmTopology = await topoRes.json();
+                const timelineData = await timelineRes.json();
+                swarmTimeline = timelineData.actions || [];
+
+                renderSwarmAgentCards();
+                renderSwarmTopology();
+                renderSwarmTimeline();
+            } catch (error) {
+                console.error('Failed to fetch swarm data:', error);
+            }
+        }
+
+        function renderSwarmAgentCards() {
+            const bar = document.getElementById('swarm-agents-bar');
+            if (swarmAgents.length === 0) {
+                bar.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.5rem;">No agents registered</div>';
+                return;
+            }
+
+            bar.innerHTML = swarmAgents.map(agent => {
+                const stateClass = agent.state.toLowerCase();
+                const typeLabel = agent.is_local ? 'Local' : 'Remote';
+                return `
+                    <div class="agent-card" data-agent-id="${agent.id}">
+                        <div class="agent-card-name" title="${agent.name}">${agent.name}</div>
+                        <div class="agent-card-state">
+                            <span class="state-dot ${stateClass}"></span>
+                            ${agent.state} &middot; ${typeLabel}
+                        </div>
+                        <div class="agent-card-stats">
+                            ${agent.jobs_completed} jobs &middot; ${(agent.success_rate * 100).toFixed(0)}% success
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSwarmTopology() {
+            const container = document.getElementById('swarm-topology');
+            const width = container.clientWidth || 350;
+            const height = container.clientHeight || 200;
+
+            container.innerHTML = '';
+
+            if (swarmTopology.nodes.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.75rem; padding: 1rem; text-align: center;">No agents in topology</div>';
+                return;
+            }
+
+            const svg = d3.select('#swarm-topology')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            const nodes = swarmTopology.nodes.map(n => ({
+                id: n.id,
+                name: n.name,
+                state: n.state.toLowerCase(),
+                is_local: n.is_local,
+                action_count: n.action_count,
+                success_rate: n.success_rate
+            }));
+
+            const links = swarmTopology.edges.map(e => ({
+                source: e.source,
+                target: e.target
+            }));
+
+            if (swarmSimulation) swarmSimulation.stop();
+
+            swarmSimulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-150))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(30));
+
+            const link = svg.append('g')
+                .selectAll('line')
+                .data(links)
+                .join('line')
+                .attr('class', 'swarm-link');
+
+            const node = svg.append('g')
+                .selectAll('g')
+                .data(nodes)
+                .join('g')
+                .attr('class', 'agent-node')
+                .call(d3.drag()
+                    .on('start', (event) => {
+                        if (!event.active) swarmSimulation.alphaTarget(0.3).restart();
+                        event.subject.fx = event.subject.x;
+                        event.subject.fy = event.subject.y;
+                    })
+                    .on('drag', (event) => {
+                        event.subject.fx = event.x;
+                        event.subject.fy = event.y;
+                    })
+                    .on('end', (event) => {
+                        if (!event.active) swarmSimulation.alphaTarget(0);
+                        event.subject.fx = null;
+                        event.subject.fy = null;
+                    }));
+
+            // Outer ring (local vs remote indicator)
+            node.append('circle')
+                .attr('r', 16)
+                .attr('fill', 'none')
+                .attr('class', d => d.is_local ? 'local-ring' : 'remote-ring');
+
+            // Inner circle (state color)
+            node.append('circle')
+                .attr('r', 12)
+                .attr('class', d => d.state);
+
+            // Agent initial letter
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '0.35em')
+                .attr('fill', 'white')
+                .attr('font-size', '10px')
+                .attr('font-weight', 'bold')
+                .attr('pointer-events', 'none')
+                .text(d => d.name.charAt(0).toUpperCase());
+
+            // Name label below
+            node.append('text')
+                .attr('class', 'agent-name-label')
+                .attr('dy', 28)
+                .text(d => d.name.length > 12 ? d.name.slice(0, 10) + '..' : d.name);
+
+            swarmSimulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node.attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+        }
+
+        function renderSwarmTimeline() {
+            const container = document.getElementById('swarm-timeline');
+            if (swarmTimeline.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-secondary); font-size: 0.75rem; padding: 0.5rem;">No recent activity</div>';
+                return;
+            }
+
+            container.innerHTML = swarmTimeline.map(action => {
+                const time = new Date(action.timestamp);
+                const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                return `
+                    <div class="timeline-item">
+                        <span class="timeline-time">${timeStr}</span>
+                        <span class="timeline-agent">${action.agent_name}</span>
+                        <span class="timeline-type">${action.action_type}</span>
+                        <span class="timeline-action">${action.details}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
         // Initialize
         connectWebSocket();
         fetchStatus();
         fetchPeers();
         fetchJobs();
+        fetchSwarmData();
 
         // Poll for updates
         setInterval(fetchStatus, 5000);
         setInterval(fetchPeers, 10000);
         setInterval(fetchJobs, 5000);
+        setInterval(fetchSwarmData, 5000);
 
         // Handle resize
-        window.addEventListener('resize', updateNetworkGraph);
+        window.addEventListener('resize', () => {
+            updateNetworkGraph();
+            if (document.getElementById('tab-swarm').classList.contains('active')) {
+                renderSwarmTopology();
+            }
+        });
     </script>
 </body>
 </html>

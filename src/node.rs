@@ -6,9 +6,11 @@ use tokio::sync::mpsc;
 use crate::bootstrap;
 use crate::config::Config;
 use crate::db::Database;
+use crate::executor::ResourceMonitor;
 use crate::identity::NodeIdentity;
 use crate::p2p::{Network, NetworkEvent};
 use crate::swarm::{SwarmManager, SwarmManagerConfig};
+use crate::web;
 
 /// The main PeerClaw node.
 pub struct Node {
@@ -120,13 +122,19 @@ impl Node {
         });
 
         // Spawn web server if enabled
-        let web_handle = if self.config.web.enabled {
+        let _web_handle = if self.config.web.enabled {
             let addr = self.config.web.listen_addr;
+            let resource_monitor = Arc::new(ResourceMonitor::with_defaults());
+            resource_monitor.start_background_updates();
+            let web_state = web::create_web_state_with_swarm(
+                *self.identity.peer_id(),
+                resource_monitor,
+                self.swarm_manager.clone(),
+            );
             Some(tokio::spawn(async move {
-                tracing::info!("Starting web server on {}", addr);
-                // TODO: Implement web server
-                // For now, just wait forever
-                futures::future::pending::<()>().await;
+                if let Err(e) = web::start_server(addr, web_state).await {
+                    tracing::error!("Web server error: {}", e);
+                }
             }))
         } else {
             None
